@@ -88,6 +88,7 @@ static Node* transformGroupingSet(List** flatresult, ParseState* pstate, Groupin
 static Index transformGroupClauseExpr(List** flatresult, Bitmapset* seen_local, ParseState* pstate, Node* gexpr,
     List** targetlist, List* sortClause, ParseExprKind exprKind, bool useSQL99, bool toplevel);
 static void CheckOrderbyColumns(ParseState* pstate, List* targetList, bool isAggregate);
+static bool OrderbyExprDependsOnDistinctColumns(Node* expr, List* targetlist);
 
 /*
  * @Description: append from clause item to the left tree
@@ -2588,7 +2589,17 @@ List* transformDistinctClause(ParseState* pstate, List** targetlist, List* sortC
         TargetEntry* tle = get_sortgroupclause_tle(scl, *targetlist);
 
         if (tle != NULL && tle->resjunk) {
-            if (allowOrderbyExpr) {
+            /*
+             * For SELECT DISTINCT, a resjunk ORDER BY item is still well-defined
+             * within a DISTINCT group when its value is determined by the
+             * DISTINCT columns, e.g. nvl(mgr, 0) with mgr in the select list.
+             * The planner sorts by such an item after the Unique step, so it
+             * need not be part of distinctClause.  Aggregates are not covered:
+             * the executor sorts a DISTINCT aggregate's input by aggdistinct
+             * only, so a skipped ORDER BY item would be silently ignored.
+             */
+            if (allowOrderbyExpr ||
+                (!is_agg && OrderbyExprDependsOnDistinctColumns((Node*)tle->expr, *targetlist))) {
                 continue;
             } else {
                 ereport(
@@ -2622,6 +2633,65 @@ List* transformDistinctClause(ParseState* pstate, List** targetlist, List* sortC
     }
 
     return result;
+}
+
+/*
+ * IsVarInDistinctTargetList -
+ *	  is the Var itself a non-resjunk item of the targetlist?
+ */
+static bool IsVarInDistinctTargetList(const Var* var, List* targetlist)
+{
+    ListCell* lc = NULL;
+
+    foreach (lc, targetlist) {
+        TargetEntry* tle = (TargetEntry*)lfirst(lc);
+
+        if (tle->resjunk || !IsA(tle->expr, Var)) {
+            continue;
+        }
+
+        Var* tvar = (Var*)tle->expr;
+        if (tvar->varno == var->varno && tvar->varattno == var->varattno &&
+            tvar->vartype == var->vartype && tvar->varlevelsup == var->varlevelsup) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/*
+ * ContainUndistinctVarWalker -
+ *	  return true if the expression references anything whose value is not
+ *	  fixed by the non-resjunk targetlist items.
+ *
+ * Vars referenced from inside a sub-select are not visited by
+ * expression_tree_walker, so a SubLink is treated as not fixed.
+ */
+static bool ContainUndistinctVarWalker(Node* node, List* targetlist)
+{
+    if (node == NULL) {
+        return false;
+    }
+    if (IsA(node, Var)) {
+        return !IsVarInDistinctTargetList((Var*)node, targetlist);
+    }
+    if (IsA(node, SubLink)) {
+        return true;
+    }
+    return expression_tree_walker(node, (bool (*)())ContainUndistinctVarWalker, (void*)targetlist);
+}
+
+/*
+ * OrderbyExprDependsOnDistinctColumns -
+ *	  is a resjunk ORDER BY expression a deterministic function of the
+ *	  non-resjunk targetlist items only?
+ */
+static bool OrderbyExprDependsOnDistinctColumns(Node* expr, List* targetlist)
+{
+    if (ContainUndistinctVarWalker(expr, targetlist)) {
+        return false;
+    }
+    return !contain_volatile_functions(expr);
 }
 
 /*
