@@ -1938,30 +1938,10 @@ void WLMVerifyGlobalParallelControl(ParctlManager* parctl)
         return;
     }
 
-    List* entries = NULL;
-
     PG_TRY();
     {
         parctl->statements_runtime_plus = 0;
-        entries = pgstat_get_user_backend_entry(InvalidOid);
-
-        if (entries == NULL) {
-            ereport(LOG, (errmsg("cannot get backend entries or backend entry is empty")));
-            running_count = 0;
-        } else {
-            foreach_cell(cell, entries)
-            {
-                PgBackendStatus* beentry = (PgBackendStatus*)lfirst(cell);
-
-                if (!(superuser_arg(beentry->st_userid) || systemDBA_arg(beentry->st_userid))) {
-                    ++running_count;
-                }
-            }
-
-            if (entries != NULL) {
-                list_free(entries);
-            }
-        }
+        running_count = pgstat_get_user_backend_entry(InvalidOid);
     }
     PG_CATCH();
     {
