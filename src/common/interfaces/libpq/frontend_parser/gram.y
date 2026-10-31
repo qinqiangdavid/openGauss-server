@@ -2723,6 +2723,21 @@ alter_table_cmd:
 					n->name = "NOCOMPRESS";
 					$$ = (Node *)n;
 				}
+			/* ALTER TABLE <name> COMPRESS/NOCOMPRESS, same as SET COMPRESS/NOCOMPRESS */
+			| COMPRESS
+				{
+					AlterTableCmd *n = makeNode(AlterTableCmd);
+					n->subtype = AT_SET_COMPRESS;
+					n->name = "COMPRESS";
+					$$ = (Node *)n;
+				}
+			| NOCOMPRESS
+				{
+					AlterTableCmd *n = makeNode(AlterTableCmd);
+					n->subtype = AT_SET_COMPRESS;
+					n->name = "NOCOMPRESS";
+					$$ = (Node *)n;
+				}
 			/* ALTER TABLE <name> SET (...) */
 			| SET reloptions
 				{

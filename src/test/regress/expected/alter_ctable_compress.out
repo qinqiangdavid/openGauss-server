@@ -12,7 +12,22 @@ select pg_table_size('test1') > pg_table_size('test2') as t;
  t
 (1 row)
 
+-- bare COMPRESS / NOCOMPRESS are the same command as SET COMPRESS / SET NOCOMPRESS
+alter table test1 compress;
+alter table test2 nocompress;
+select c.relname, c.reloptions from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'alter_ctable_compress' and c.relname in ('test1', 'test2') order by c.relname;
+ relname |              reloptions              
+---------+--------------------------------------
+ test1   | {orientation=column,compression=yes}
+ test2   | {orientation=column,compression=no}
+(2 rows)
+
+create table test3(id int);
+alter table test3 compress;
+ERROR:  row-oriented table does not support compression
+alter table test3 nocompress;
 drop schema alter_ctable_compress cascade;
-NOTICE:  drop cascades to 2 other objects
+NOTICE:  drop cascades to 3 other objects
 DETAIL:  drop cascades to table test1
 drop cascades to table test2
+drop cascades to table test3
