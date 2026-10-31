@@ -467,7 +467,10 @@ vnumeric_op(PG_FUNCTION_ARGS)
 				num1Flags = NUMERIC_NB_FLAGBITS(leftarg);
 				num2Flags = NUMERIC_NB_FLAGBITS(rightarg);	
 				
-				if(likely(NUMERIC_FLAG_IS_BI(num1Flags) && NUMERIC_FLAG_IS_BI(num2Flags)))
+				/* a zero divisor goes to numericFun, which may return NULL in B format */
+				finfo.isnull = false;
+				if(likely(NUMERIC_FLAG_IS_BI(num1Flags) && NUMERIC_FLAG_IS_BI(num2Flags)) &&
+					!(op == BIDIV && numericIsZero(rightarg)))
 				{
 					arg1 = NUMERIC_FLAG_IS_BI128(num1Flags);
 					arg2 = NUMERIC_FLAG_IS_BI128(num2Flags);
@@ -480,7 +483,10 @@ vnumeric_op(PG_FUNCTION_ARGS)
 					args[1] = NumericGetDatum(rightarg);
 					presult[i] = numericFun(&finfo);
 				}
-				SET_NOTNULL(pflagsRes[i]);
+				if(unlikely(finfo.isnull))
+					SET_NULL(pflagsRes[i]);
+				else
+					SET_NOTNULL(pflagsRes[i]);
 			}
 			else
 			{
@@ -502,7 +508,10 @@ vnumeric_op(PG_FUNCTION_ARGS)
 					num1Flags = NUMERIC_NB_FLAGBITS(leftarg);
 					num2Flags = NUMERIC_NB_FLAGBITS(rightarg);
 					
-					if(likely(NUMERIC_FLAG_IS_BI(num1Flags) && NUMERIC_FLAG_IS_BI(num2Flags)))
+					/* a zero divisor goes to numericFun, which may return NULL in B format */
+					finfo.isnull = false;
+					if(likely(NUMERIC_FLAG_IS_BI(num1Flags) && NUMERIC_FLAG_IS_BI(num2Flags)) &&
+						!(op == BIDIV && numericIsZero(rightarg)))
 					{
 						arg1 = NUMERIC_FLAG_IS_BI128(num1Flags);
 						arg2 = NUMERIC_FLAG_IS_BI128(num2Flags);
@@ -515,7 +524,10 @@ vnumeric_op(PG_FUNCTION_ARGS)
 						args[1] = NumericGetDatum(rightarg);
 						presult[i] = numericFun(&finfo);
 					}
-					SET_NOTNULL(pflagsRes[i]);
+					if(unlikely(finfo.isnull))
+						SET_NULL(pflagsRes[i]);
+					else
+						SET_NOTNULL(pflagsRes[i]);
 				}
 				else
 				{

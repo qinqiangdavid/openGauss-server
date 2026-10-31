@@ -814,6 +814,22 @@ Datum int4mul(PG_FUNCTION_ARGS)
     PG_RETURN_INT32(result);
 }
 
+/*
+ * Division or modulo by zero in a B-format database.  MySQL's default sql_mode
+ * (ERROR_FOR_DIVISION_BY_ZERO) gives a warning and a NULL result instead of an
+ * error.  When dolphin is loaded it implements sql_mode itself, so the kernel
+ * operators keep their own behavior there.  Returns true after raising the
+ * warning; the caller then returns NULL.
+ */
+bool DivisionByZeroReturnsNull(void)
+{
+    if (!B_FORMAT_DIV_BY_ZERO_RETURNS_NULL) {
+        return false;
+    }
+    ereport(WARNING, (errcode(ERRCODE_DIVISION_BY_ZERO), errmsg("division by zero")));
+    return true;
+}
+
 Datum int4div(PG_FUNCTION_ARGS)
 {
     int32 arg1 = PG_GETARG_INT32(0);
@@ -822,6 +838,9 @@ Datum int4div(PG_FUNCTION_ARGS)
     float8 result;
 
     if (arg2 == 0) {
+        if (DivisionByZeroReturnsNull()) {
+            PG_RETURN_NULL();
+        }
         ereport(ERROR, (errcode(ERRCODE_DIVISION_BY_ZERO), errmsg("division by zero")));
         /* ensure compiler realizes we mustn't reach the division (gcc bug) */
         PG_RETURN_NULL();
@@ -922,6 +941,9 @@ Datum int2div(PG_FUNCTION_ARGS)
     float8 result;
 
     if (arg2 == 0) {
+        if (DivisionByZeroReturnsNull()) {
+            PG_RETURN_NULL();
+        }
         ereport(ERROR, (errcode(ERRCODE_DIVISION_BY_ZERO), errmsg("division by zero")));
         /* ensure compiler realizes we mustn't reach the division (gcc bug) */
         PG_RETURN_NULL();
@@ -992,6 +1014,9 @@ Datum int24div(PG_FUNCTION_ARGS)
     float8 result;
 
     if (arg2 == 0) {
+        if (DivisionByZeroReturnsNull()) {
+            PG_RETURN_NULL();
+        }
         ereport(ERROR, (errcode(ERRCODE_DIVISION_BY_ZERO), errmsg("division by zero")));
         /* ensure compiler realizes we mustn't reach the division (gcc bug) */
         PG_RETURN_NULL();
@@ -1046,6 +1071,9 @@ Datum int42div(PG_FUNCTION_ARGS)
     float8 result;
 
     if (arg2 == 0) {
+        if (DivisionByZeroReturnsNull()) {
+            PG_RETURN_NULL();
+        }
         ereport(ERROR, (errcode(ERRCODE_DIVISION_BY_ZERO), errmsg("division by zero")));
         /* ensure compiler realizes we mustn't reach the division (gcc bug) */
         PG_RETURN_NULL();
@@ -1081,6 +1109,9 @@ Datum int4mod(PG_FUNCTION_ARGS)
     int32 arg2 = PG_GETARG_INT32(1);
 
     if (unlikely(arg2 == 0)) {
+        if (DivisionByZeroReturnsNull()) {
+            PG_RETURN_NULL();
+        }
         if (DB_IS_CMPT(PG_FORMAT)) {
             /* zero is not allowed to be divisor if compatible with PG */
             ereport(ERROR, (errcode(ERRCODE_DIVISION_BY_ZERO), errmsg("division by zero")));
@@ -1111,6 +1142,9 @@ Datum int2mod(PG_FUNCTION_ARGS)
     int16 arg2 = PG_GETARG_INT16(1);
 
     if (unlikely(arg2 == 0)) {
+        if (DivisionByZeroReturnsNull()) {
+            PG_RETURN_NULL();
+        }
         if (DB_IS_CMPT(PG_FORMAT)) {
             /* zero is not allowed to be divisor if compatible with PG */
             ereport(ERROR, (errcode(ERRCODE_DIVISION_BY_ZERO), errmsg("division by zero")));
@@ -1780,6 +1814,9 @@ Datum int1div(PG_FUNCTION_ARGS)
     float8 result;
 
     if (arg2 == 0) {
+        if (DivisionByZeroReturnsNull()) {
+            PG_RETURN_NULL();
+        }
         ereport(ERROR, (errcode(ERRCODE_DIVISION_BY_ZERO), errmsg("division by zero")));
 
         /* ensure compiler realizes we mustn't reach the division (gcc bug) */
@@ -1804,6 +1841,9 @@ Datum int1mod(PG_FUNCTION_ARGS)
     uint8 arg2 = PG_GETARG_UINT8(1);
 
     if (arg2 == 0) {
+        if (DivisionByZeroReturnsNull()) {
+            PG_RETURN_NULL();
+        }
         if (DB_IS_CMPT(PG_FORMAT)) {
             /* zero is not allowed to be divisor if compatible with PG */
             ereport(ERROR, (errcode(ERRCODE_DIVISION_BY_ZERO), errmsg("division by zero")));

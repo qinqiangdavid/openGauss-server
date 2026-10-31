@@ -31,6 +31,7 @@
 
 #include "catalog/pg_operator.h"
 #include "pgxc/pgxc.h"
+#include "utils/builtins.h"
 #include "vecexecutor/vecexecutor.h"
 
 void WrapAllocHashSlot(HashAggRunner* haRunner, VectorBatch* batch, int idx, int keysimple);
@@ -173,11 +174,15 @@ bool VecHashAggCodeGen::AggRefJittable(ExprState* state)
                 case INT8PLOID:
                 case INT8MIOID:
                 case INT8MULOID:
-                case INT8DIVOID:
                 case NUMERICADDOID:
                 case NUMERICSUBOID:
                 case NUMERICMULOID:
+                    break;
+                case INT8DIVOID:
                 case NUMERICDIVOID:
+                    /* the jitted division raises an error on a zero divisor, B format returns NULL */
+                    if (B_FORMAT_DIV_BY_ZERO_RETURNS_NULL)
+                        return false;
                     break;
                 default:
                     return false;

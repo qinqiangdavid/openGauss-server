@@ -247,6 +247,28 @@ inline Numeric makeNumericNormal(Numeric val)
 }
 
 /*
+ * @Description: whether a numeric value is zero, in either the normal or the
+ *               big integer format.  NaN is not zero.
+ * @IN val: input numeric data
+ * @Return: true if val is zero
+ */
+inline bool numericIsZero(Numeric val)
+{
+    if (NUMERIC_IS_BI64(val)) {
+        return NUMERIC_64VALUE(val) == 0;
+    }
+
+    if (NUMERIC_IS_BI128(val)) {
+        int128 tmp_data = 0;
+        errno_t rc = memcpy_s(&tmp_data, sizeof(int128), val->choice.n_bi.n_data, sizeof(int128));
+        securec_check(rc, "\0", "\0");
+        return tmp_data == 0;
+    }
+
+    return !NUMERIC_IS_NAN(val) && NUMERIC_NDIGITS(val) == 0;
+}
+
+/*
  * @Description: Detoast column numeric data. Column numeric is
  *               a short-header type.
  * @IN num: input numeric data

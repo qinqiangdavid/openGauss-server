@@ -2417,6 +2417,10 @@ Datum numeric_div(PG_FUNCTION_ARGS)
     uint16 num1Flags = NUMERIC_NB_FLAGBITS(num1);
     uint16 num2Flags = NUMERIC_NB_FLAGBITS(num2);
 
+    if (!NUMERIC_IS_NAN(num1) && numericIsZero(num2) && DivisionByZeroReturnsNull()) {
+        PG_RETURN_NULL();
+    }
+
     if (NUMERIC_FLAG_IS_NANORBI(num1Flags) || NUMERIC_FLAG_IS_NANORBI(num2Flags)) {
         if (NUMERIC_FLAG_IS_BI(num1Flags) && NUMERIC_FLAG_IS_BI(num2Flags)) {
             // call biginteger function
@@ -2474,6 +2478,10 @@ Datum numeric_div_trunc(PG_FUNCTION_ARGS)
     uint16 num1Flags = NUMERIC_NB_FLAGBITS(num1);
     uint16 num2Flags = NUMERIC_NB_FLAGBITS(num2);
 
+    if (!NUMERIC_IS_NAN(num1) && numericIsZero(num2) && DivisionByZeroReturnsNull()) {
+        PG_RETURN_NULL();
+    }
+
     if (NUMERIC_FLAG_IS_NANORBI(num1Flags) || NUMERIC_FLAG_IS_NANORBI(num2Flags)) {
         /*
          * Handle NaN
@@ -2527,6 +2535,10 @@ Datum numeric_mod(PG_FUNCTION_ARGS)
     NumericVar result;
     uint16 num1Flags = NUMERIC_NB_FLAGBITS(num1);
     uint16 num2Flags = NUMERIC_NB_FLAGBITS(num2);
+
+    if (!NUMERIC_IS_NAN(num1) && numericIsZero(num2) && DivisionByZeroReturnsNull()) {
+        PG_RETURN_NULL();
+    }
 
     if (NUMERIC_FLAG_IS_NANORBI(num1Flags) || NUMERIC_FLAG_IS_NANORBI(num2Flags)) {
         /*
