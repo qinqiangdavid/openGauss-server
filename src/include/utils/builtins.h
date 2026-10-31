@@ -335,6 +335,9 @@ extern Datum int4up(PG_FUNCTION_ARGS);
 extern Datum int4pl(PG_FUNCTION_ARGS);
 extern Datum int4mi(PG_FUNCTION_ARGS);
 extern Datum int4mul(PG_FUNCTION_ARGS);
+/* B format without dolphin: divide or modulo by zero returns NULL with a warning */
+#define B_FORMAT_DIV_BY_ZERO_RETURNS_NULL (DB_IS_CMPT(B_FORMAT) && !u_sess->attr.attr_sql.dolphin)
+extern bool DivisionByZeroReturnsNull(void);
 extern Datum int4div(PG_FUNCTION_ARGS);
 extern Datum int4abs(PG_FUNCTION_ARGS);
 extern Datum int4inc(PG_FUNCTION_ARGS);

@@ -543,6 +543,9 @@ Datum int16div(PG_FUNCTION_ARGS)
     float8 result;
 
     if (arg2 == 0) {
+        if (DivisionByZeroReturnsNull()) {
+            PG_RETURN_NULL();
+        }
         ereport(ERROR,
             (errmodule(MOD_FUNCTION), errcode(ERRCODE_DIVISION_BY_ZERO),
                 errmsg("division by zero"),

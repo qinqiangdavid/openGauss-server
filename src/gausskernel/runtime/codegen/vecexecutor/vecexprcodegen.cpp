@@ -37,6 +37,7 @@
 #include "catalog/pg_language.h"
 #include "optimizer/planmain.h"
 #include "pgxc/pgxc.h"
+#include "utils/builtins.h"
 #include "utils/lsyscache.h"
 #include "utils/syscache.h"
 #include "vecexecutor/vecfunc.h"
@@ -763,6 +764,15 @@ bool VecExprCodeGen::OpJittable(ExprState* state)
                 if (data[i] == STR_UNL || data[i] == STR_SLA)
                     return false;
             }
+        } break;
+        case INT4DIVOID:
+        case INT8DIVOID:
+        case INT48DIVOID:
+        case INT84DIVOID:
+        case NUMERICDIVOID: {
+            /* the jitted division raises an error on a zero divisor, B format returns NULL */
+            if (B_FORMAT_DIV_BY_ZERO_RETURNS_NULL)
+                return false;
         } break;
         case TIMESTAMPEQOID:
         case TIMESTAMPNEOID:

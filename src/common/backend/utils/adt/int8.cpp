@@ -539,6 +539,9 @@ Datum int8div(PG_FUNCTION_ARGS)
     float8 result;
 
     if (arg2 == 0) {
+        if (DivisionByZeroReturnsNull()) {
+            PG_RETURN_NULL();
+        }
         ereport(ERROR, (errcode(ERRCODE_DIVISION_BY_ZERO), errmsg("division by zero")));
         /* ensure compiler realizes we mustn't reach the division (gcc bug) */
         PG_RETURN_NULL();
@@ -591,6 +594,9 @@ Datum int8mod(PG_FUNCTION_ARGS)
     int64 arg2 = PG_GETARG_INT64(1);
 
     if (unlikely(arg2 == 0)) {
+        if (DivisionByZeroReturnsNull()) {
+            PG_RETURN_NULL();
+        }
         if (DB_IS_CMPT(PG_FORMAT)) {
             /* zero is not allowed to be divisor if compatible with PG */
             ereport(ERROR, (errcode(ERRCODE_DIVISION_BY_ZERO), errmsg("division by zero")));
@@ -757,6 +763,9 @@ Datum int84div(PG_FUNCTION_ARGS)
     float8 result;
 
     if (arg2 == 0) {
+        if (DivisionByZeroReturnsNull()) {
+            PG_RETURN_NULL();
+        }
         ereport(ERROR, (errcode(ERRCODE_DIVISION_BY_ZERO), errmsg("division by zero")));
         /* ensure compiler realizes we mustn't reach the division (gcc bug) */
         PG_RETURN_NULL();
@@ -845,6 +854,9 @@ Datum int48div(PG_FUNCTION_ARGS)
     int64 arg2 = PG_GETARG_INT64(1);
 
     if (arg2 == 0) {
+        if (DivisionByZeroReturnsNull()) {
+            PG_RETURN_NULL();
+        }
         ereport(ERROR, (errcode(ERRCODE_DIVISION_BY_ZERO), errmsg("division by zero")));
         /* ensure compiler realizes we mustn't reach the division (gcc bug) */
         PG_RETURN_NULL();
@@ -924,6 +936,9 @@ Datum int82div(PG_FUNCTION_ARGS)
     float8 result;
 
     if (arg2 == 0) {
+        if (DivisionByZeroReturnsNull()) {
+            PG_RETURN_NULL();
+        }
         ereport(ERROR, (errcode(ERRCODE_DIVISION_BY_ZERO), errmsg("division by zero")));
         /* ensure compiler realizes we mustn't reach the division (gcc bug) */
         PG_RETURN_NULL();
@@ -1019,6 +1034,9 @@ Datum int28div(PG_FUNCTION_ARGS)
     int64 arg2 = PG_GETARG_INT64(1);
 
     if (arg2 == 0) {
+        if (DivisionByZeroReturnsNull()) {
+            PG_RETURN_NULL();
+        }
         ereport(ERROR, (errcode(ERRCODE_DIVISION_BY_ZERO), errmsg("division by zero")));
         /* ensure compiler realizes we mustn't reach the division (gcc bug) */
         PG_RETURN_NULL();

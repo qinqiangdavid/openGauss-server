@@ -718,8 +718,12 @@ Datum float4div(PG_FUNCTION_ARGS)
     float4 arg2 = PG_GETARG_FLOAT4(1);
     float4 result;
 
-    if (arg2 == 0.0)
+    if (arg2 == 0.0) {
+        if (DivisionByZeroReturnsNull()) {
+            PG_RETURN_NULL();
+        }
         ereport(ERROR, (errcode(ERRCODE_DIVISION_BY_ZERO), errmsg("division by zero")));
+    }
 
     if (arg1 == 0.0)
         PG_RETURN_FLOAT4(0);
@@ -781,8 +785,12 @@ Datum float8div(PG_FUNCTION_ARGS)
     float8 arg2 = PG_GETARG_FLOAT8(1);
     float8 result;
 
-    if (arg2 == 0.0)
+    if (arg2 == 0.0) {
+        if (DivisionByZeroReturnsNull()) {
+            PG_RETURN_NULL();
+        }
         ereport(ERROR, (errcode(ERRCODE_DIVISION_BY_ZERO), errmsg("division by zero")));
+    }
 
     if (arg1 == 0.0)
         PG_RETURN_FLOAT8(0);
@@ -2333,8 +2341,12 @@ Datum float48div(PG_FUNCTION_ARGS)
     float8 arg2 = PG_GETARG_FLOAT8(1);
     float8 result;
 
-    if (arg2 == 0.0)
+    if (arg2 == 0.0) {
+        if (DivisionByZeroReturnsNull()) {
+            PG_RETURN_NULL();
+        }
         ereport(ERROR, (errcode(ERRCODE_DIVISION_BY_ZERO), errmsg("division by zero")));
+    }
 
     if (arg1 == 0.0)
         PG_RETURN_FLOAT8(0);
@@ -2395,8 +2407,12 @@ Datum float84div(PG_FUNCTION_ARGS)
     float4 arg2 = PG_GETARG_FLOAT4(1);
     float8 result;
 
-    if (arg2 == 0.0)
+    if (arg2 == 0.0) {
+        if (DivisionByZeroReturnsNull()) {
+            PG_RETURN_NULL();
+        }
         ereport(ERROR, (errcode(ERRCODE_DIVISION_BY_ZERO), errmsg("division by zero")));
+    }
 
     if (arg1 == 0.0)
         PG_RETURN_FLOAT8(0);
