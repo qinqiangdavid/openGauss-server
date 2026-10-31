@@ -2136,6 +2136,7 @@ typedef struct AnnIndexScanState {
     LOCKMODE lockMode;
     Relation iss_CurrentIndexPartition;
     double annCount; // limitValue/selectvity
+    AnnScanInstrumentation iss_AnnInstr; /* runtime counters reported by the ANN AM */
 } AnnIndexScanState;
 
 /* ----------------

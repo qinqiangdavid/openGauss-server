@@ -176,9 +176,24 @@ typedef struct IndexScanDescData {
      *xs_ctbuf_hdr. t_bits which is varlength arr
      */
     int64 count;
+    /* runtime counters of an ANN scan, owned by the executor node; NULL if nobody collects them */
+    struct AnnScanInstrumentation* xs_ann_instr;
     HeapTupleHeaderData xs_ctbuf_hdr;
     /* DO NOT add any other members here. xs_ctbuf_hdr must be the last one. */
 } IndexScanDescData;
+
+/*
+ * Runtime counters of an ANN index scan. The Ann Index Scan executor node owns
+ * one and hands it to the index AM through IndexScanDesc->xs_ann_instr, so the
+ * counts survive rescans and partition switches; EXPLAIN ANALYZE prints them.
+ */
+typedef struct AnnScanInstrumentation {
+    int64 annCount;   /* candidate count the executor asked of the AM (scan->count) */
+    int64 searches;   /* graph searches, including the first one of every scan */
+    int64 researches; /* searches repeated with a doubled width because candidates ran out */
+    int64 maxWidth;   /* widest candidate list requested from a single search */
+    int64 candidates; /* candidates returned by all searches */
+} AnnScanInstrumentation;
 
 /* Generic structure for parallel scans */
 typedef struct ParallelIndexScanDescData {

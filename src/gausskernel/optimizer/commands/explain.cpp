@@ -170,6 +170,7 @@ static void show_sort_group_info(SortGroupState *state, ExplainState *es);
 static void show_hash_info(HashState* hashstate, ExplainState* es);
 static void show_vechash_info(VecHashJoinState* hashstate, ExplainState* es);
 static void show_tidbitmap_info(BitmapHeapScanState *planstate, ExplainState *es);
+static void show_ann_scan_info(AnnIndexScanState *planstate, ExplainState *es);
 static void show_instrumentation_count(const char* qlabel, int which, const PlanState* planstate, ExplainState* es);
 static void show_removed_rows(int which, const PlanState* planstate, int idx, int smpIdx, int* removeRows);
 static int check_integer_overflow(double var);
@@ -2709,6 +2710,8 @@ static void ExplainNode(
             show_scan_qual(plan->qual, "Filter", planstate, ancestors, es);
             if (plan->qual)
                 show_instrumentation_count("Rows Removed by Filter", 1, planstate, es);
+            if (es->analyze)
+                show_ann_scan_info((AnnIndexScanState*)planstate, es);
             break;
         case T_BitmapIndexScan:
             show_scan_qual(((BitmapIndexScan*)plan)->indexqualorig, "Index Cond", planstate, ancestors, es);
@@ -7750,6 +7753,35 @@ static void show_tidbitmap_info(BitmapHeapScanState *planstate, ExplainState *es
             }
             appendStringInfoChar(es->str, '\n');
         }
+    }
+}
+
+/*
+ * If it's EXPLAIN ANALYZE, show the runtime counters of an ANN index scan:
+ * the candidate count asked of the AM, how many graph searches ran (and how
+ * many of them were repeated with a doubled width because the candidates ran
+ * out), the widest search, and the candidates returned by all searches.
+ * Nothing is shown if the AM does not report these counters.
+ */
+static void show_ann_scan_info(AnnIndexScanState *planstate, ExplainState *es)
+{
+    const AnnScanInstrumentation *instr = &planstate->iss_AnnInstr;
+
+    if (instr->searches == 0)
+        return;
+
+    if (es->format != EXPLAIN_FORMAT_TEXT) {
+        ExplainPropertyLong("Ann Count", instr->annCount, es);
+        ExplainPropertyLong("Ann Searches", instr->searches, es);
+        ExplainPropertyLong("Ann Re-searches", instr->researches, es);
+        ExplainPropertyLong("Ann Max Width", instr->maxWidth, es);
+        ExplainPropertyLong("Ann Candidates", instr->candidates, es);
+    } else {
+        appendStringInfoSpaces(es->str, es->indent * 2);
+        appendStringInfo(es->str,
+            "Ann Search: count=" INT64_FORMAT " searches=" INT64_FORMAT " re-searches=" INT64_FORMAT
+            " max width=" INT64_FORMAT " candidates=" INT64_FORMAT "\n",
+            instr->annCount, instr->searches, instr->researches, instr->maxWidth, instr->candidates);
     }
 }
 

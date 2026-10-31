@@ -181,12 +181,32 @@ void hnswrescan_internal(IndexScanDesc scan, ScanKey keys, int nkeys, ScanKey or
     }
 }
 
+/*
+ * Record one graph search in the executor's ANN counters, if it collects them
+ */
+static void CountScanItems(IndexScanDesc scan, HnswScanOpaque so, bool research)
+{
+    AnnScanInstrumentation *instr = scan->xs_ann_instr;
+
+    if (instr == NULL)
+        return;
+
+    instr->annCount = scan->count;
+    instr->searches++;
+    if (research)
+        instr->researches++;
+    if (so->length > instr->maxWidth)
+        instr->maxWidth = so->length;
+    instr->candidates += list_length(so->w);
+}
+
 void check_length(HnswScanOpaque so, IndexScanDesc scan)
 {
     if (list_length(so->w) == 0) {
         LockPage(scan->indexRelation, HNSW_SCAN_LOCK, ShareLock);
         so->length = so->length * 2;
         so->w = GetScanItems(scan, so->value);
+        CountScanItems(scan, so, true);
 
         /* Release shared lock */
         UnlockPage(scan->indexRelation, HNSW_SCAN_LOCK, ShareLock);
@@ -235,6 +255,7 @@ bool hnswgettuple_internal(IndexScanDesc scan, ScanDirection dir)
         LockPage(scan->indexRelation, HNSW_SCAN_LOCK, ShareLock);
 
         so->w = GetScanItems(scan, value);
+        CountScanItems(scan, so, false);
 
         /* Release shared lock */
         UnlockPage(scan->indexRelation, HNSW_SCAN_LOCK, ShareLock);
