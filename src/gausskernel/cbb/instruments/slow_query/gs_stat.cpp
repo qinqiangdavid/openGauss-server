@@ -321,7 +321,10 @@ PgBackendStatusNode* gs_stat_read_current_status(uint32* maxCalls)
         localentry = NULL;
     }
     (void)MemoryContextSwitchTo(oldContext);
-    return localtable->next;
+    /* localtable is only a dummy head, free it so that callers own exactly the nodes they get back. */
+    PgBackendStatusNode* result = localtable->next;
+    pfree_ext(localtable);
+    return result;
 }
 
 // Using TupleStore to optimize the process
@@ -384,11 +387,17 @@ PgBackendStatus* gs_stat_fetch_stat_beentry(int32 beid)
             return NULL;
     }
 
-    PgBackendStatusNode* node = gs_stat_read_current_status(NULL);
+    /*
+     * The snapshot is rebuilt on every call, so release everything except the
+     * returned entry; the caller must free it with gs_stat_free_stat_beentry().
+     */
+    PgBackendStatusNode* head = gs_stat_read_current_status(NULL);
+    PgBackendStatusNode* node = head;
     while (node != NULL) {
         beentry = node->data;
         if (beentry != NULL) {
             if (index == beid) {
+                gs_stat_free_stat_node_without_beentry(head, beentry);
                 return beentry;
             }
         }
@@ -396,22 +405,31 @@ PgBackendStatus* gs_stat_fetch_stat_beentry(int32 beid)
         node = node->next;
     }
 
+    gs_stat_free_stat_node_without_beentry(head);
     return NULL;
 }
 
-void gs_stat_free_stat_node(PgBackendStatusNode* node)
+/* Free a node list built by gs_stat_read_current_status(), keeping outbeentry (if any) alive. */
+void gs_stat_free_stat_node_without_beentry(PgBackendStatusNode* node, PgBackendStatus* outbeentry)
 {
     PgBackendStatusNode* tmpNode = node;
     PgBackendStatusNode* freeNode = NULL;
     PgBackendStatus* beentry = NULL;
- 
+
     while (tmpNode != NULL) {
         beentry = tmpNode->data;
-        gs_stat_free_stat_beentry(beentry);
+        if (beentry != outbeentry) {
+            gs_stat_free_stat_beentry(beentry);
+        }
         freeNode = tmpNode;
         tmpNode = tmpNode->next;
         pfree_ext(freeNode);
     }
+}
+
+void gs_stat_free_stat_node(PgBackendStatusNode* node)
+{
+    gs_stat_free_stat_node_without_beentry(node);
 }
 
 void gs_stat_free_stat_beentry(PgBackendStatus* beentry)
