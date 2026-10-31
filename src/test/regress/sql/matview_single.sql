@@ -228,7 +228,7 @@ create materialized view log on cov_t2;
 create materialized view log on cov_t2;
 drop table cov_t1,cov_t2 cascade;
 
--- 只有mlog没有incre matview，不维护mlog
+-- 只有mlog没有incre matview，也维护mlog
 create table only_mlog_t1(c1 int);
 create materialized view log on only_mlog_t1;
 insert into only_mlog_t1 values (1);
@@ -243,6 +243,12 @@ begin
 END;
 /
 select * from only_mlog_record;
+-- 只有mlog没有incre matview，同样禁止修改表定义
+alter table only_mlog_t1 add c2 int;
+select count(*) from pg_attribute where attrelid = 'only_mlog_t1'::regclass and attnum > 0 and not attisdropped;
+-- 删除mlog后允许修改表定义
+drop materialized view log on only_mlog_t1;
+alter table only_mlog_t1 add c2 int;
 drop table only_mlog_t1, only_mlog_record;
 
 -- \help

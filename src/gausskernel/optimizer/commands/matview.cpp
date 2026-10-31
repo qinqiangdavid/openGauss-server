@@ -2268,28 +2268,6 @@ Oid find_matview_mlog_table(Oid relid)
     return mlogid;
 }
 
-bool is_table_in_incre_matview(Oid relid)
-{
-    Relation rel = NULL;
-    TableScanDesc scan;
-    ScanKeyData scanKey;
-    bool result = false;
-
-    ScanKeyInit(&scanKey,
-        Anum_gs_matview_dep_relid,
-        BTEqualStrategyNumber,
-        F_OIDEQ,
-        ObjectIdGetDatum(relid));
-    rel = heap_open(MatviewDependencyId, AccessShareLock);
-    scan = tableam_scan_begin(rel, SnapshotNow, 1, &scanKey);
-    if (tableam_scan_getnexttuple(scan, ForwardScanDirection) != NULL) {
-        result = true;
-    }
-    tableam_scan_end(scan);
-    heap_close(rel, NoLock);
-    return result;
-}
-
 void insert_into_mlog_table(Relation rel, Oid mlogid, HeapTuple tuple, ItemPointer tid, TransactionId xid, char action)
 {
     int i;
@@ -2916,6 +2894,9 @@ void DropMatViewLog(DropMatViewLogStmt* parse_tree)
     mlogobject.objectId = mlogid;
     mlogobject.objectSubId = 0;
     performDeletion(&mlogobject, DROP_RESTRICT, PERFORM_DELETION_INTERNAL);
+
+    /* rd_mlogoid of the base table caches the mlog oid, rebuild it like create_mlog_table does */
+    CacheInvalidateRelcacheByRelid(relid);
 }
 
 DistributeBy *infer_incmatview_distkey(CreateTableAsStmt *stmt) {

@@ -391,7 +391,7 @@ create materialized view log on cov_t2;
 create materialized view log on cov_t2;
 ERROR:  materialized view log for table "cov_t2" already exists.
 drop table cov_t1,cov_t2 cascade;
--- 只有mlog没有incre matview，不维护mlog
+-- 只有mlog没有incre matview，也维护mlog
 create table only_mlog_t1(c1 int);
 create materialized view log on only_mlog_t1;
 insert into only_mlog_t1 values (1);
@@ -408,9 +408,22 @@ END;
 select * from only_mlog_record;
  c1 
 ----
-  0
+  1
 (1 row)
 
+-- 只有mlog没有incre matview，同样禁止修改表定义
+alter table only_mlog_t1 add c2 int;
+ERROR:  Un-support feature
+DETAIL:  table owning matview doesn't support this ALTER yet.
+select count(*) from pg_attribute where attrelid = 'only_mlog_t1'::regclass and attnum > 0 and not attisdropped;
+ count 
+-------
+     1
+(1 row)
+
+-- 删除mlog后允许修改表定义
+drop materialized view log on only_mlog_t1;
+alter table only_mlog_t1 add c2 int;
 drop table only_mlog_t1, only_mlog_record;
 -- \help
 \h create materialized view log
