@@ -218,6 +218,52 @@ select distinct name from dob_student order by name, id;
 select distinct name from dob_student order by nlssort(name, 'NLS_SORT=SCHINESE_PINYIN_M') asc;
 drop table dob_student;
 
+drop table emp_rec;
+CREATE TABLE emp_rec
+(EMPNO NUMBER(4) NOT NULL,
+ENAME VARCHAR2(10),
+JOB VARCHAR2(9),
+MGR NUMBER(4),
+HIREDATE DATE,
+SAL NUMBER(7, 2),
+COMM NUMBER(7, 2),
+DEPTNO NUMBER(2)
+);
+
+INSERT INTO emp_rec VALUES (7369, 'SMITH', 'CLERK', 7902,TO_DATE('17-DEC-1980', 'DD-MON-YYYY'), 800, NULL, 20);
+INSERT INTO emp_rec VALUES (7499, 'ALLEN', 'SALESMAN', 7698,TO_DATE('20-FEB-1981', 'DD-MON-YYYY'), 1600, 300, 30);
+INSERT INTO emp_rec VALUES (7521, 'WARD', 'SALESMAN', 7698,TO_DATE('22-FEB-1981', 'DD-MON-YYYY'), 1250, 500, 30);
+INSERT INTO emp_rec VALUES (7566, 'JONES', 'MANAGER', 7839,TO_DATE('2-APR-1981', 'DD-MON-YYYY'), 2975, NULL, 20);
+INSERT INTO emp_rec VALUES (7654, 'MARTIN', 'SALESMAN', 7698,TO_DATE('28-SEP-1981', 'DD-MON-YYYY'), 1250, 1400, 30);
+INSERT INTO emp_rec VALUES (7698, 'BLAKE', 'MANAGER', 7839,TO_DATE('1-MAY-1981', 'DD-MON-YYYY'), 2850, NULL, 30);
+INSERT INTO emp_rec VALUES (7782, 'CLARK', 'MANAGER', 7839,TO_DATE('9-JUN-1981', 'DD-MON-YYYY'), 2450, NULL, 10);
+INSERT INTO emp_rec VALUES (7788, 'SCOTT', 'ANALYST', 7566,TO_DATE('09-DEC-1982', 'DD-MON-YYYY'), 3000, NULL, 20);
+INSERT INTO emp_rec VALUES (7839, 'KING', 'PRESIDENT', NULL,TO_DATE('17-NOV-1981', 'DD-MON-YYYY'), 5000, NULL, 10);
+INSERT INTO emp_rec VALUES (7844, 'TURNER', 'SALESMAN', 7698,TO_DATE('8-SEP-1981', 'DD-MON-YYYY'), 1500, 0, 30);
+INSERT INTO emp_rec VALUES (7876, 'ADAMS', 'CLERK', 7788,TO_DATE('12-JAN-1983', 'DD-MON-YYYY'), 1100, NULL, 20);
+INSERT INTO emp_rec VALUES (7900, 'JAMES', 'CLERK', 7698,TO_DATE('3-DEC-1981', 'DD-MON-YYYY'), 950, NULL, 30);
+INSERT INTO emp_rec VALUES (7902, 'FORD', 'ANALYST', 7566,TO_DATE('3-DEC-1981', 'DD-MON-YYYY'), 3000, NULL, 20);
+INSERT INTO emp_rec VALUES (7934, 'MILLER', 'CLERK', 7782,TO_DATE('23-JAN-1982', 'DD-MON-YYYY'), 1300, NULL, 10);
+
+SELECT distinct mgr, comm FROM emp_rec WHERE comm is not null order by nvl(mgr,0);
+SELECT distinct mgr, comm FROM emp_rec WHERE comm is not null order by nvl(mgr,sal);
+SELECT distinct mgr, sal, comm FROM emp_rec WHERE comm is not null order by nvl(mgr,sal);
+SELECT distinct mgr, comm FROM emp_rec WHERE comm is not null order by GREATEST(mgr,0);
+SELECT distinct mgr, comm FROM emp_rec WHERE comm is not null order by GREATEST(mgr, sal);
+-- the ORDER BY expression must be fixed by the select list
+SELECT distinct mgr, comm FROM emp_rec WHERE comm is not null
+  order by case when mgr > 0 then 1 else 0 end, comm;
+SELECT distinct mgr, comm FROM emp_rec
+  order by case when sal > 0 then 1 end;
+SELECT distinct mgr, comm FROM emp_rec
+  order by random();
+SELECT distinct mgr, comm FROM emp_rec
+  order by (select sal);
+-- DISTINCT aggregates still require ORDER BY items in the argument list
+SELECT max(distinct mgr
+  order by abs(mgr)) FROM emp_rec;
+drop table emp_rec;
+
 -- test on B database
 create database dob_bdb with dbcompatibility 'b';
 \c dob_bdb
