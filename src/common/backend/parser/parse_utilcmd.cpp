@@ -4380,6 +4380,14 @@ IndexStmt* transformIndexStmt(Oid relid, IndexStmt* stmt, const char* queryStrin
         stmt->whereClause = transformWhereClause(pstate, stmt->whereClause, EXPR_KIND_INDEX_PREDICATE, "WHERE");
         /* we have to fix its collations too */
         assign_expr_collations(pstate, stmt->whereClause);
+#ifndef ENABLE_MULTIPLE_NODES
+        /*
+         * ROWNUM only has a value inside a plan node; an index predicate is
+         * evaluated by index build/insert without one, so reject it here just
+         * like index expressions below.
+         */
+        ExcludeRownumExpr(pstate, stmt->whereClause);
+#endif
     }
     List* indexElements = NIL;
     /* take care of any index expressions */
