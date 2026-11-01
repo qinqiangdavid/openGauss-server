@@ -17,11 +17,13 @@
 
 #include "access/hash.h"
 #include "access/tuptoaster.h"
+#include "common/int.h"
 #include "libpq/pqformat.h"
 #include "nodes/nodeFuncs.h"
 #include "nodes/supportnodes.h"
 #include "utils/array.h"
 #include "utils/builtins.h"
+#include "utils/memutils.h"
 #include "mb/pg_wchar.h"
 #include "utils/sortsupport.h"
 #include "vecexecutor/vectorbatch.h"
@@ -1645,12 +1647,13 @@ static void vlpad_internal(ScalarVector* parg1, ScalarVector* parg2, ScalarVecto
     s1len = pg_mbstrlen_with_len_eml(VARDATA_ANY(parg1->m_vals[idx]), s1len, eml);
     s1len = (s1len > len) ? len : s1len;
     len = (s2len <= 0) ? s1len : len;
-    bytelen = eml * len;
-
-    if (len != 0 && bytelen / eml != len)
+    if (unlikely(pg_mul_s32_overflow(eml, len, &bytelen)) ||
+        unlikely(pg_add_s32_overflow(bytelen, VARHDRSZ, &bytelen)) ||
+        unlikely(!AllocSizeIsValid(bytelen))) {
         ereport(ERROR, (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED), errmsg("requested length too large")));
+    }
 
-    ret = (text*)palloc((VARHDRSZ + bytelen));
+    ret = (text*)palloc(bytelen);
     m = len - s1len;
 
     ptr2 = ptr2start = VARDATA_ANY(parg2->m_vals[idx]);
