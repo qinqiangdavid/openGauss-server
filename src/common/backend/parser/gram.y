@@ -591,7 +591,7 @@ static void contain_unsupport_node(Node* node, bool* has_unsupport_default_node)
 %type <boolean>		opt_charbyte
 
 %type <list>	key_usage_list index_hint_list opt_index_hint_list
-%type <node>	index_hint_definition
+%type <node>	index_hint_definition key_usage_element
 %type <list>	group_by_list
 %type <node>	group_by_item empty_grouping_set rollup_clause cube_clause
 %type <node>	grouping_sets_clause OptAutoIncrement
@@ -15951,13 +15951,30 @@ opt_index_name:
 
 /* b compatibility index hint part */
 key_usage_list:
+			key_usage_element
+			{
+				$$ = list_make1($1);
+			}
+			| key_usage_list ',' key_usage_element
+			{
+				$$ = lappend($1, $3);
+			}
+		;
+
+/*
+ * MySQL names a table's primary key index PRIMARY. PRIMARY is a reserved
+ * keyword here, so it is kept apart from index_name and represented by an
+ * Integer node (see IndexHintDefinition); a quoted index named "primary"
+ * still comes through index_name as a String.
+ */
+key_usage_element:
 			index_name
 			{
-				$$ = list_make1(makeString($1));
+				$$ = (Node *)makeString($1);
 			}
-			| key_usage_list ',' index_name
+			| PRIMARY
 			{
-				$$ = lappend($1,makeString($3));
+				$$ = (Node *)makeInteger(INDEX_HINT_PRIMARY_KEY);
 			}
 		;
 

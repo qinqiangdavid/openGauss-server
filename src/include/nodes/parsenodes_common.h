@@ -2627,6 +2627,13 @@ typedef enum IndexHintType {
     INDEX_HINT_NOT_EXISTS
 }IndexHintType;
 
+/*
+ * indexnames: String nodes naming real indexes; an Integer node with value
+ * INDEX_HINT_PRIMARY_KEY stands for MySQL's pseudo index name PRIMARY, i.e.
+ * the table's primary key index.
+ */
+#define INDEX_HINT_PRIMARY_KEY 0
+
 typedef struct IndexHintDefinition {
     NodeTag type;
     List* indexnames;
