@@ -15,6 +15,7 @@
 
 #include "mb/pg_wchar.h"
 #include <cxxabi.h>
+#include <ctype.h>
 
 #ifdef ENABLE_UT
 #define static
@@ -179,7 +180,21 @@ static bool is_match_delimiter_name(const char* left, const char* right)
     return true ;
 }
 
-static char* get_correct_str(char*str, const char *delimiter_name, bool is_new_lines)
+/*
+ * Rewrite a B-format input line before it is scanned.
+ *
+ * For a DELIMITER command, the argument is copied up to the point where the
+ * delimiter can still be matched as a single lexer token by both gsql
+ * (psqlscan.l) and the server (scan.l): either all letters or no letters and
+ * no quotes, unless it is quoted.  An unquoted argument that keeps going past
+ * that point (e.g. "abc@&""adc") cannot be used as one delimiter; it used to be
+ * cut silently at the first character class change, which installed a
+ * different delimiter than the user asked for and made every later statement
+ * unterminated.  Such a command is now rejected as a whole: *rejected is set,
+ * an error is printed, an empty line is returned and the delimiter is left
+ * unchanged.
+ */
+static char* get_correct_str(char*str, const char *delimiter_name, bool is_new_lines, bool *rejected)
 {
     /* Determine whether it is a delimiter command. */
     char *str_temp = pg_strdup(str);
@@ -216,6 +231,7 @@ static char* get_correct_str(char*str, const char *delimiter_name, bool is_new_l
         char *start = deliResultTemp;
         int length = end - str_temp;
         char *temp_pos = str;
+        char *arg_start = NULL;
         bool is_spec_type = false;
         while(length--) {
             *start++ = *temp_pos++;
@@ -224,6 +240,7 @@ static char* get_correct_str(char*str, const char *delimiter_name, bool is_new_l
         while(*temp_pos == ' ') {
             temp_pos++;
         }
+        arg_start = temp_pos;
         if (*temp_pos != '\0') {
             if (*temp_pos != ';') {
                 if (JudgeQuteType(*temp_pos)) {
@@ -242,6 +259,26 @@ static char* get_correct_str(char*str, const char *delimiter_name, bool is_new_l
                     *start++ = *temp_pos;
                     if ((!quoted && *temp_pos == ' ') || (quoted && *temp_pos == quoted_type)) 
                         break;
+                }
+                /*
+                 * The unquoted argument only ends at whitespace, ';' or the end
+                 * of the line.  Stopping anywhere else means the word changes
+                 * character class in the middle and cannot be one delimiter.
+                 */
+                if (!quoted && *temp_pos != '\0' && *temp_pos != ';' && !isspace((unsigned char)*temp_pos)) {
+                    char *arg_end = temp_pos;
+                    while (*arg_end != '\0' && *arg_end != ';' && !isspace((unsigned char)*arg_end)) {
+                        arg_end++;
+                    }
+                    psql_error("delimiter \"%.*s\" is not supported: an unquoted delimiter must consist of "
+                        "letters only, or of characters other than letters and quotes only; "
+                        "the delimiter is unchanged\n", (int)(arg_end - arg_start), arg_start);
+                    *rejected = true;
+                    free(str_temp);
+                    str_temp = NULL;
+                    free(deliResultTemp);
+                    deliResultTemp = NULL;
+                    return pg_strdup("");
                 }
             } else {
                 *start++ = *temp_pos++;
@@ -524,14 +561,15 @@ int MainLoop(FILE* source, char* querystring)
         /*
          * Parse line, looking for command separators.
          */
+        bool delimiter_rejected = false;
         if (is_b_format) {
-            line_temp = get_correct_str(line, delimiter_name, is_new_lines);
+            line_temp = get_correct_str(line, delimiter_name, is_new_lines, &delimiter_rejected);
             psql_scan_setup(scan_state, line_temp, (int)strlen(line_temp));
             free(line_temp);
         } else {
             psql_scan_setup(scan_state, line, (int)strlen(line));
         }
-        success = true;
+        success = !delimiter_rejected;
         line_saved_in_history = false;
 
         while (success || !die_on_error) {

@@ -137,6 +137,37 @@ select 1"sdsd sd"
 (1 row)
 
 delimiter ;
+--Test an unquoted delimiter that mixes letters with other characters is rejected as a whole, not truncated
+delimiter abc@&""adc
+delimiter "abc@&""adc" is not supported: an unquoted delimiter must consist of letters only, or of characters other than letters and quotes only; the delimiter is unchanged
+show delimiter_name;
+ delimiter_name 
+----------------
+ ;
+(1 row)
+
+select 1;
+ ?column? 
+----------
+        1
+(1 row)
+
+delimiter abc1
+delimiter "abc1" is not supported: an unquoted delimiter must consist of letters only, or of characters other than letters and quotes only; the delimiter is unchanged
+show delimiter_name;
+ delimiter_name 
+----------------
+ ;
+(1 row)
+
+delimiter @&abc
+delimiter "@&abc" is not supported: an unquoted delimiter must consist of letters only, or of characters other than letters and quotes only; the delimiter is unchanged
+show delimiter_name;
+ delimiter_name 
+----------------
+ ;
+(1 row)
+
 -- test delimiter use in create procedure situation
 -- report gram error in server ,not subprogram end error, success in plugin 
 create table test_table (dot_no int);
