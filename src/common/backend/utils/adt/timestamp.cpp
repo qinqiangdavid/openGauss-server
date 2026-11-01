@@ -87,8 +87,6 @@
 #define MAXNUM_HOUR 24
 #define MAXNUM_MIN 60
 #define MAXNUM_SEC 60
-#define DAYS_PER_COMMON_YEAR 365
-#define DAYS_PER_LEAP_YEAR 366
 
 constexpr int N_TIMESTAMP_FUNC_ARGS = 4;
 constexpr int FMT_INDX_TIMESTAMP_FUNC_ARGS = 3;
@@ -148,7 +146,7 @@ void CheckTimeValidity(struct pg_tm* tm);
 static int WhetherFebLeapYear(struct pg_tm* tm);
 static int WhetherSmallMon(struct pg_tm* tm);
 static int WhetherBigMon(struct pg_tm* tm);
-static int daydiff_timestamp(const struct pg_tm* tm, const struct pg_tm* tm1, const struct pg_tm* tm2,
+static int daydiff_timestamp(const struct pg_tm* tm1, fsec_t fsec1, const struct pg_tm* tm2, fsec_t fsec2,
                              bool day_fix = false);
 
 void timestamp_FilpSign(pg_tm* tm);
@@ -3341,18 +3339,20 @@ Datum interval_avg(PG_FUNCTION_ARGS)
 }
 
 /*
- * @Description: Calculate the difference of days between two date.
+ * @Description: Calculate the difference of days between two timestamps.
  *	may be positive or negative.
- * @in tm : timestamp1 - timestamp2.
- * @in tm1 : timestmap1
- * @in tm2 : timestamp2
+ * @in tm1, fsec1 : timestamp1 fields and fractional second
+ * @in tm2, fsec2 : timestamp2 fields and fractional second
+ * @in day_fix : if false, return the difference of calendar dates;
+ *	if true, return the number of whole days in timestamp1 - timestamp2 (truncated toward zero),
+ *	i.e. drop one day when the time of day (including fractional second) has to borrow from the day.
+ *	Callers that add tm_hour/tm_min/tm_sec from timestamp_CalculateFields() must pass true,
+ *	because those fields have already been borrowed from the day.
  */
-static int daydiff_timestamp(const struct pg_tm* tm, const struct pg_tm* tm1, const struct pg_tm* tm2, bool day_fix)
+static int daydiff_timestamp(const struct pg_tm* tm1, fsec_t fsec1, const struct pg_tm* tm2, fsec_t fsec2, bool day_fix)
 {
     int result = 0;
-    int tm1_days_of_year = 0, tm2_days_of_year = 0;
-    int i = 0, j = 0, k = 0;
-    if (tm1 == NULL || tm2 == NULL || tm == NULL) {
+    if (tm1 == NULL || tm2 == NULL) {
         ereport(ERROR,
             (errmodule(MOD_FUNCTION),
                 errcode(ERRCODE_NULL_VALUE_NOT_ALLOWED),
@@ -3360,65 +3360,18 @@ static int daydiff_timestamp(const struct pg_tm* tm, const struct pg_tm* tm1, co
         return 0;
     }
 
-    /*
-     * if tm2 > tm1, then
-     * tm1_days_of_year calc how many days have passed since the beginning of the tm1 year
-     * tm2_days_of_year calc how many days have passed since the beginning of the tm1 year
-     * if tm1 > tm2, then
-     * tm1_days_of_year calc how many days have passed since the beginning of the tm2 year
-     * tm2_days_of_year calc how many days have passed since the beginning of the tm2 year
-     */
-    if (tm->tm_year > 0 || tm->tm_mon > 0 || tm->tm_mday > 0) {
-        i = tm2->tm_mon - 1;
-        while (i > 0) {
-            i = i - 1;
-            tm2_days_of_year += day_tab[isleap(tm2->tm_year)][i];
-        }
-        tm2_days_of_year += tm2->tm_mday;
-
-        j = tm1->tm_year - tm2->tm_year;
-        while (j > 0) {
-            j = j - 1;
-            tm1_days_of_year += isleap(j + tm2->tm_year) ? DAYS_PER_LEAP_YEAR : DAYS_PER_COMMON_YEAR;
-        }
-        k = tm1->tm_mon - 1;
-        while (k > 0) {
-            k = k - 1;
-            tm1_days_of_year += day_tab[isleap(tm1->tm_year)][k];
-        }
-        tm1_days_of_year += tm1->tm_mday;
-    } else {
-        i = tm1->tm_mon - 1;
-        while (i > 0) {
-            i = i - 1;
-            tm1_days_of_year += day_tab[isleap(tm1->tm_year)][i];
-        }
-        tm1_days_of_year += tm1->tm_mday;
-
-        j = tm2->tm_year - tm1->tm_year;
-        while (j > 0) {
-            j = j - 1;
-            tm2_days_of_year += isleap(j + tm1->tm_year) ? DAYS_PER_LEAP_YEAR : DAYS_PER_COMMON_YEAR;
-        }
-        k = tm2->tm_mon - 1;
-        while (k > 0) {
-            k = k - 1;
-            tm2_days_of_year += day_tab[isleap(tm2->tm_year)][k];
-        }
-        tm2_days_of_year += tm2->tm_mday;
-    }
-    result = tm1_days_of_year - tm2_days_of_year;
+    result = date2j(tm1->tm_year, tm1->tm_mon, tm1->tm_mday) - date2j(tm2->tm_year, tm2->tm_mon, tm2->tm_mday);
 
     if (!day_fix) {
         return result;
     }
 
-    int tm1_secs_of_day = tm1->tm_hour * 60 * 60 + tm1->tm_min * 60 + tm1->tm_sec;
-    int tm2_secs_of_day = tm2->tm_hour * 60 * 60 + tm2->tm_min * 60 + tm2->tm_sec;
+    TimeOffset tm1_time_of_day = time2t(tm1->tm_hour, tm1->tm_min, tm1->tm_sec, fsec1);
+    TimeOffset tm2_time_of_day = time2t(tm2->tm_hour, tm2->tm_min, tm2->tm_sec, fsec2);
 
-    if (result < 0 && tm1_secs_of_day > tm2_secs_of_day) {
+    if (result < 0 && tm1_time_of_day > tm2_time_of_day) {
         return result + 1;
-    } else if (result > 0 && tm1_secs_of_day < tm2_secs_of_day) {
+    } else if (result > 0 && tm1_time_of_day < tm2_time_of_day) {
         return result - 1;
     }
     return result;
@@ -3488,34 +3441,34 @@ int64 timestamp_diff_internal(text *units, TimestampTz dt1, TimestampTz dt2, boo
                 result = (tm->tm_year * MONTHS_PER_YEAR + tm->tm_mon) / 3;
                 break;
             case DTK_DAY:
-                result = daydiff_timestamp(tm, tm1, tm2, day_fix);
+                result = daydiff_timestamp(tm1, fsec1, tm2, fsec2, day_fix);
                 break;
             case DTK_WEEK:
-                result = daydiff_timestamp(tm, tm1, tm2, day_fix) / 7;
+                result = daydiff_timestamp(tm1, fsec1, tm2, fsec2, day_fix) / 7;
                 break;
             case DTK_HOUR:
 #ifdef HAVE_INT64_TIMESTAMP
-                result = daydiff_timestamp(tm, tm1, tm2, day_fix) * INT64CONST(24) + tm->tm_hour;
+                result = daydiff_timestamp(tm1, fsec1, tm2, fsec2, day_fix) * INT64CONST(24) + tm->tm_hour;
 #else
-                result = daydiff_timestamp(tm, tm1, tm2, day_fix) * HOURS_PER_DAY + tm->tm_hour;
+                result = daydiff_timestamp(tm1, fsec1, tm2, fsec2, day_fix) * HOURS_PER_DAY + tm->tm_hour;
 #endif
                 break;
             case DTK_MINUTE: {
 #ifdef HAVE_INT64_TIMESTAMP
-                result = (daydiff_timestamp(tm, tm1, tm2, day_fix) * INT64CONST(24) + tm->tm_hour) *
+                result = (daydiff_timestamp(tm1, fsec1, tm2, fsec2, day_fix) * INT64CONST(24) + tm->tm_hour) *
                          INT64CONST(60) + tm->tm_min;
 #else
-                result = (daydiff_timestamp(tm, tm1, tm2, day_fix) * HOURS_PER_DAY + tm->tm_hour) *
+                result = (daydiff_timestamp(tm1, fsec1, tm2, fsec2, day_fix) * HOURS_PER_DAY + tm->tm_hour) *
                          (double)MINS_PER_HOUR + tm->tm_min;
 #endif
             } break;
             case DTK_SECOND: {
 #ifdef HAVE_INT64_TIMESTAMP
-                result = ((daydiff_timestamp(tm, tm1, tm2, day_fix) * INT64CONST(24) + tm->tm_hour) *
+                result = ((daydiff_timestamp(tm1, fsec1, tm2, fsec2, day_fix) * INT64CONST(24) + tm->tm_hour) *
                              INT64CONST(60) + tm->tm_min) *
                          INT64CONST(60) + tm->tm_sec;
 #else
-                result = ((daydiff_timestamp(tm, tm1, tm2, day_fix) * HOURS_PER_DAY + tm->tm_hour) *
+                result = ((daydiff_timestamp(tm1, fsec1, tm2, fsec2, day_fix) * HOURS_PER_DAY + tm->tm_hour) *
                              (double)MINS_PER_HOUR + tm->tm_min) *
                          (double)SECS_PER_MINUTE + tm->tm_sec;
 #endif
@@ -3528,7 +3481,7 @@ int64 timestamp_diff_internal(text *units, TimestampTz dt1, TimestampTz dt2, boo
                  */
                 {
 #ifdef HAVE_INT64_TIMESTAMP
-                    sec_result = ((daydiff_timestamp(tm, tm1, tm2, day_fix) * INT64CONST(24) + tm->tm_hour) *
+                    sec_result = ((daydiff_timestamp(tm1, fsec1, tm2, fsec2, day_fix) * INT64CONST(24) + tm->tm_hour) *
                                      INT64CONST(60) + tm->tm_min) * INT64CONST(60) +
                                  tm->tm_sec;
                     if (unlikely((int128)sec_result * INT64CONST(1000000) > (int128)INT64_MAX ||
@@ -3542,7 +3495,7 @@ int64 timestamp_diff_internal(text *units, TimestampTz dt1, TimestampTz dt2, boo
                     }
                     result = sec_result * INT64CONST(1000000) + fsec;
 #else
-                    sec_result = ((daydiff_timestamp(tm, tm1, tm2, day_fix) * HOURS_PER_DAY + tm->tm_hour) *
+                    sec_result = ((daydiff_timestamp(tm1, fsec1, tm2, fsec2, day_fix) * HOURS_PER_DAY + tm->tm_hour) *
                                      (double)MINS_PER_HOUR + tm->tm_min) *
                                  (double)SECS_PER_MINUTE + tm->tm_sec;
                     if (unlikely((int128)sec_result * (double)USECS_PER_SEC > (int128)INT64_MAX ||
