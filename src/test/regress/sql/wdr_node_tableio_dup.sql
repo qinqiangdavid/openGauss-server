@@ -1,0 +1,54 @@
+---
+-- node-level WDR "User table IO activity" must output one row per table,
+-- no matter how many indexes the table has (issue 5229)
+---
+\c postgres
+alter system set enable_wdr_snapshot to on;
+\! sleep 15s
+show enable_wdr_snapshot;
+create table og5229_snap_ids(tag text, id bigint);
+-- a table with 3 indexes, and a control table with 1 index
+create table og5229_multi_idx(id int, c1 int, c2 int);
+insert into og5229_multi_idx select g, g % 100, g % 7 from generate_series(1, 20000) g;
+create index og5229_multi_idx_i1 on og5229_multi_idx(id);
+create index og5229_multi_idx_i2 on og5229_multi_idx(c1);
+create index og5229_multi_idx_i3 on og5229_multi_idx(c2);
+create table og5229_one_idx(id int, c1 int);
+insert into og5229_one_idx select g, g % 100 from generate_series(1, 20000) g;
+create index og5229_one_idx_i1 on og5229_one_idx(id);
+\! sleep 1s
+select 1;
+select create_wdr_snapshot();
+\! sleep 15s
+insert into og5229_snap_ids select 'begin', max(snapshot_id) from snapshot.snapshot;
+-- generate heap and index IO on both tables between the two snapshots
+select count(*) from og5229_multi_idx;
+select count(*) from og5229_multi_idx where id between 1 and 500;
+select count(*) from og5229_multi_idx where c1 = 7;
+select count(*) from og5229_multi_idx where c2 = 3;
+select count(*) from og5229_one_idx;
+select count(*) from og5229_one_idx where id between 1 and 500;
+\! sleep 1s
+select 1;
+select create_wdr_snapshot();
+\! sleep 15s
+insert into og5229_snap_ids select 'end', max(snapshot_id) from snapshot.snapshot;
+select e.id > b.id as new_snapshot_taken
+  from og5229_snap_ids b, og5229_snap_ids e where b.tag = 'begin' and e.tag = 'end';
+-- generate the node-level detail report
+set client_min_messages = error;
+create table og5229_report as
+select generate_wdr_report(b.id, e.id, 'detail', 'node', pgxc_node_str()::cstring)::text as r
+  from og5229_snap_ids b, og5229_snap_ids e where b.tag = 'begin' and e.tag = 'end';
+reset client_min_messages;
+-- "Heap Blks Hit" section: our tables have the most heap hits in the window
+select (select count(*) from regexp_matches(sec, '>og5229_multi_idx</td>', 'g')) as multi_idx_rows,
+       (select count(*) from regexp_matches(sec, '>og5229_one_idx</td>', 'g')) as one_idx_rows
+  from (select substring(r from position('id="User_table_IO_activity_ordered_by_Heap_Blks_Hit"' in r)
+                         for position('id="User_table_IO_activity_ordered_by_Idx_Blks_Read"' in r)
+                             - position('id="User_table_IO_activity_ordered_by_Heap_Blks_Hit"' in r)) as sec
+          from og5229_report) s;
+drop table og5229_report;
+drop table og5229_snap_ids;
+drop table og5229_multi_idx;
+drop table og5229_one_idx;
