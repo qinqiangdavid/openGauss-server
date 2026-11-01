@@ -63,6 +63,17 @@ create table unsupported_feature.compress_byte_test(id int) with (compresstype=2
 create table unsupported_feature.test(id int) with (compresstype=2); -- success
 alter table unsupported_feature.test set(Compresstype=1); -- success
 alter table unsupported_feature.test set(Compress_level=3); -- failed
+-- alter compresstype from zstd to pglz keeps compress_level=0 in reloptions; gs_dump replays it as is (issue 7156)
+create table unsupported_feature.t_alter_level0(id int) with (compresstype=2, compress_level=0); -- success
+alter table unsupported_feature.t_alter_level0 set (compresstype=1); -- success
+select reloptions from pg_class where relname = 't_alter_level0';
+create table unsupported_feature.t_alter_level0_replay(id int) with (orientation=row, compress_level=0, compresstype=1); -- success
+create table unsupported_feature.t_pglz_level0(id int) with (compresstype=1, compress_level=0); -- success
+create table unsupported_feature.t_pglz_level3(id int) with (compresstype=1, compress_level=3); -- failed
+alter table unsupported_feature.t_alter_level0 set (compress_level=3); -- failed
+create index t_pglz_level0_idx on unsupported_feature.t_pglz_level0(id) with (compresstype=1, compress_level=0); -- success
+alter index unsupported_feature.t_pglz_level0_idx set (compress_level=0); -- success
+alter index unsupported_feature.t_pglz_level0_idx set (compress_level=3); -- failed
 
 create table lm_rcp_4 (c1 int,c2 varchar2,c3 number,c4 money,c5 CHAR(20),c6 CLOB,c7 blob,c8 DATE,c9 BOOLEAN,c10 TIMESTAMP,c11 point,columns12 cidr) with(Compresstype=2,Compress_chunk_size=512)
     partition by list(c1) subpartition by range(c3)(

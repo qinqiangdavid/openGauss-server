@@ -804,7 +804,7 @@ ObjectAddress DefineIndex(Oid relationId, IndexStmt* stmt, Oid indexRelationId, 
     rel = heap_open(relationId, lockmode);
 
     bool segment = get_rel_segment(rel);
-    TableCreateSupport indexCreateSupport{(int)COMPRESS_TYPE_NONE, false, false, false, false, false, true, false};
+    TableCreateSupport indexCreateSupport{(int)COMPRESS_TYPE_NONE, 0, false, false, false, false, true, false};
     ListCell *cell = NULL;
     foreach (cell, stmt->options) {
         DefElem *defElem = (DefElem *)lfirst(cell);
