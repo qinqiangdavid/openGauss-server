@@ -2732,6 +2732,10 @@ create index test0 on t_rep_table(sin(a), sin(rownum+1));
 ERROR:  specified ROWNUM is not allowed here.
 LINE 1: create index test0 on t_rep_table(sin(a), sin(rownum+1));
                                                   ^
+create index test0 on t_rep_table(a) where rownum < 10;
+ERROR:  specified ROWNUM is not allowed here.
+LINE 1: create index test0 on t_rep_table(a) where rownum < 10;
+                                                   ^
 drop index idx_rep_table;
 drop table t_hash_table;
 drop table t_rep_table;
