@@ -10600,6 +10600,8 @@ static char* _ShowOption(struct config_generic* record, bool use_units, bool is_
     char buffer[256];
     const char* val = NULL;
     int rc = 0;
+    char* res = NULL;
+    bool needFreeVal = false;
 
     switch (record->vartype) {
         case PGC_BOOL: {
@@ -10779,16 +10781,16 @@ static char* _ShowOption(struct config_generic* record, bool use_units, bool is_
         case PGC_STRING: {
             struct config_string* conf = (struct config_string*)record;
 
-            if (conf->show_hook && is_show)
+            if ((conf->show_hook && (is_show || (strcasecmp(record->name, "identity") == 0 || strcasecmp(record->name, "last_insert_id") == 0)))) {
                 val = (*conf->show_hook)();
-            else if (strcasecmp(record->name, "identity") == 0 ||
-                     strcasecmp(record->name, "last_insert_id") == 0) {
-                val = (*conf->show_hook)();
-            }
-            else if (*conf->variable && **conf->variable)
+                if (conf->gen.name != NULL && strcmp(conf->gen.name, "uncontrolled_memory_context") == 0) {
+                    needFreeVal = true;
+                }
+            } else if (*conf->variable && **conf->variable) {
                 val = *conf->variable;
-            else
+            } else {
                 val = "";
+            }  
         } break;
 
         case PGC_ENUM: {
@@ -10806,7 +10808,11 @@ static char* _ShowOption(struct config_generic* record, bool use_units, bool is_
             break;
     }
 
-    return pstrdup(val);
+    res = pstrdup(val);
+    if (needFreeVal) {
+        pfree_ext(val);
+    }
+    return res;
 }
 
 #ifdef EXEC_BACKEND
