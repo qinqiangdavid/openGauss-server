@@ -958,6 +958,7 @@ explain (costs off) select  /*+ rows(t_rep_table #100000) */  * from t_hash_tabl
 create index test0 on t_rep_table(rownum);
 create index test0 on t_rep_table(sin(a), sin(rownum));
 create index test0 on t_rep_table(sin(a), sin(rownum+1));
+create index test0 on t_rep_table(a) where rownum < 10;
 
 drop index idx_rep_table;
 drop table t_hash_table;
