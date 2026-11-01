@@ -5812,6 +5812,42 @@ static char* get_last_relevant_decnum(char* num)
 #define OVERLOAD_TEST (Np->inout_p >= Np->inout + plen)
 #define AMOUNT_TEST(s) (Np->inout_p <= Np->inout + (plen - (s)))
 
+/*
+ * TO_NUMBER in A compatibility (unless correct_to_number is set) follows the
+ * A database: the integer part of the input must fit in the integer digits
+ * ('9'/'0' before the decimal point) of the format, otherwise the input is
+ * invalid.  Without this check the surplus integer digits were silently either
+ * read through a following decimal-point node or left unread after the last
+ * format node.  Hexadecimal ('X') and 'V' formats count digits differently
+ * and are not checked.
+ */
+#define NUM_CHECK_INT_DIGITS(_n)                                                         \
+    (!CORRECT_TO_NUMBER && u_sess->attr.attr_sql.sql_compatibility == A_FORMAT &&        \
+        !IS_X16((_n)->Num) && !IS_MULTI((_n)->Num))
+
+static void NUM_int_digits_overflow_error()
+{
+    ereport(ERROR, (errcode(ERRCODE_INVALID_OPERATION), errmsg("invalid data.")));
+}
+
+/*
+ * After the format is exhausted: does an integer digit remain in the unread
+ * input?  Group separators may sit between the remaining digits, so scan up to
+ * the decimal point instead of looking at the next character only.
+ */
+static bool NUM_unread_int_digit(NUMProc* Np, int plen)
+{
+    int dec_len = strlen(Np->decimal);
+
+    for (char* p = Np->inout_p; p < Np->inout + plen && *p != '\0'; p++) {
+        if (*p == '.' || (dec_len > 0 && strncmp(p, Np->decimal, dec_len) == 0))
+            return false;
+        if (isdigit((unsigned char)*p))
+            return true;
+    }
+    return false;
+}
+
 /* ----------
  * Number extraction for TO_NUMBER()
  * ----------
@@ -5904,6 +5940,10 @@ static void NUM_numpart_from_char(NUMProc* Np, int id, int plen, int& tmp_len)
     if (isdigit((unsigned char)*Np->inout_p)) {
         if (Np->read_dec && Np->read_post == Np->Num->post)
             return;
+
+        /* an integer digit beyond the integer digits of the format */
+        if (!Np->read_dec && Np->read_pre >= Np->Num->pre && NUM_CHECK_INT_DIGITS(Np))
+            NUM_int_digits_overflow_error();
 
         *Np->number_p = *Np->inout_p;
         Np->number_p++;
@@ -6798,6 +6838,10 @@ static char* NUM_processor(FormatNode* node, NUMDesc* Num, char* inout, char* nu
         *Np->inout_p = '\0';
         return Np->inout;
     } else {
+        /* integer digits left over after the integer digits of the format */
+        if (!Np->read_dec && NUM_CHECK_INT_DIGITS(Np) && NUM_unread_int_digit(Np, plen))
+            NUM_int_digits_overflow_error();
+
         if (*(Np->number_p - 1) == '.')
             *(Np->number_p - 1) = '\0';
         else
