@@ -457,6 +457,32 @@ select /*+ indexonlyscan(db_1131004_tb index_1131004) */col2 from db_1131004_tb 
 explain (costs off) select /*+ indexonlyscan(db_1131004_tb index_1131004) */col2 from db_1131004_tb ignore index (index_1131004) where col2= 3;
 
 
+-- index hint with MySQL pseudo index name PRIMARY (the primary key index)
+create table db_og1980_tb (id int, c1 int, primary key(id));
+create index index_og1980_c1 on db_og1980_tb (c1);
+insert into db_og1980_tb values(1,1),(2,1),(3,2),(4,2),(5,3);
+analyze db_og1980_tb;
+select * from db_og1980_tb force index (PRIMARY) where id = 1;
+select * from db_og1980_tb use index (PRIMARY) where id = 1;
+select * from db_og1980_tb ignore index (PRIMARY) where id = 1;
+select * from db_og1980_tb force key (primary) where id = 1;
+explain (costs off) select * from db_og1980_tb force index (PRIMARY) where id = 1;
+explain (costs off) select * from db_og1980_tb force index (PRIMARY, index_og1980_c1) where id = 1;
+explain (costs off) select * from db_og1980_tb force index (index_og1980_c1, PRIMARY) where id = 1;
+explain (costs off) select * from db_og1980_tb ignore index (PRIMARY) where id = 1;
+select * from db_og1980_tb use index (PRIMARY) force index (PRIMARY) where id = 1;
+-- no primary key: PRIMARY is a missing index
+create table db_og1980_nopk (id int, c1 int);
+create index index_og1980_nopk on db_og1980_nopk (id);
+insert into db_og1980_nopk values(1,1),(2,2);
+select * from db_og1980_nopk force index (PRIMARY) where id = 1;
+-- a quoted index named "primary" is an ordinary index name, not the primary key
+create index "primary" on db_og1980_nopk (c1);
+explain (costs off) select * from db_og1980_nopk force index ("primary") where c1 = 1;
+select * from db_og1980_nopk force index (PRIMARY) where id = 1;
+drop table db_og1980_tb;
+drop table db_og1980_nopk;
+
 \c postgres
 DROP DATABASE IF EXISTS db_1097149;
 

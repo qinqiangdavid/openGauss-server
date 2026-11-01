@@ -3718,7 +3718,14 @@ static IndexHintType preCheckIndexHints(ParseState* pstate, List* indexhints, Re
         }
         /*check index is in table*/
         foreach (lc_index, idef->indexnames) {
-            indexOid = get_relname_relid(strVal(lfirst(lc_index)), relationNsOid);
+            Node* indexname = (Node*)lfirst(lc_index);
+            if (IsA(indexname, Integer)) {
+                /* PRIMARY: the table's primary key index, if it has one */
+                Assert(intVal(indexname) == INDEX_HINT_PRIMARY_KEY);
+                indexOid = RelationGetPrimaryKeyIndex(relation);
+            } else {
+                indexOid = get_relname_relid(strVal(indexname), relationNsOid);
+            }
             exist_indexs = false;
             if (OidIsValid(indexOid)) {
                 if (list_member_oid(indexList, indexOid)) {
