@@ -27,11 +27,13 @@ Datum gms_inaddr_get_host_address(PG_FUNCTION_ARGS)
     char result[ADDRESSSIZE] = {0};
     char *hostname = NULL;
     char local_name[HOSTNAMESIZE] = {0};
-    if (PG_ARGISNULL(0)) {
+    text *arg = PG_ARGISNULL(0) ? NULL : PG_GETARG_TEXT_PP(0);
+    /* '' is NULL in A compatibility; treat an empty string the same way in other modes */
+    if (arg == NULL || VARSIZE_ANY_EXHDR(arg) == 0) {
         (void)gethostname(local_name, 255);
         hostname = local_name;
     } else {
-        hostname = text_to_cstring(PG_GETARG_TEXT_PP(0));
+        hostname = text_to_cstring(arg);
     }
 
     ret = getaddrinfo(hostname, NULL, NULL, &gai_result);
@@ -66,14 +68,16 @@ Datum gms_inaddr_get_host_name(PG_FUNCTION_ARGS)
 
     char *ip_address = NULL;
 
-    if (PG_ARGISNULL(0)) {
+    text *arg = PG_ARGISNULL(0) ? NULL : PG_GETARG_TEXT_PP(0);
+    /* '' is NULL in A compatibility; treat an empty string the same way in other modes */
+    if (arg == NULL || VARSIZE_ANY_EXHDR(arg) == 0) {
         char local_name[HOSTNAMESIZE] = {0};
         (void)gethostname(local_name, 255);
         text *result_text = cstring_to_text(local_name);
         PG_RETURN_TEXT_P(result_text);
     }
 
-    ip_address = text_to_cstring(PG_GETARG_TEXT_PP(0));
+    ip_address = text_to_cstring(arg);
 
     bool is_ipv6 = false;
     if (inet_pton(AF_INET, ip_address, &addr.sin_addr) != 1) {
