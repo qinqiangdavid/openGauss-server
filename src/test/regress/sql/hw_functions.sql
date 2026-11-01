@@ -353,6 +353,7 @@ SELECT TO_CHAR(INTERVAL '123-2' YEAR(4) TO MONTH, 'YYYY-MON-DD', 'NLS_DATE_LANGU
 
 SELECT TO_CHAR(time '15:24:52', 'HH24:MI:SS');
 SELECT TO_CHAR(timetz '15:24:52', 'HH24:MI:SS');
+SELECT TO_CHAR(time '12:13:14', 'HH:MI:SS');
 
 CREATE TABLE blob_table (c1 BLOB);
 INSERT INTO blob_table (c1) VALUES ( (encode('Hello World!','hex'))::RAW );
