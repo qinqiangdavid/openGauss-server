@@ -1,0 +1,27 @@
+--
+-- dbe_perf.global_stat_xact_all_tables must report each table once per node
+-- (issue 4393: pg_catalog/pg_toast rows were returned twice)
+--
+-- every (node_name, relid) pair appears exactly once
+SELECT count(*) AS dup_keys FROM (
+  SELECT node_name, relid FROM dbe_perf.global_stat_xact_all_tables
+  GROUP BY node_name, relid HAVING count(*) > 1
+) s;
+ dup_keys 
+----------
+        0
+(1 row)
+
+-- on a single node the global view has as many rows per schema as the local view
+SELECT count(*) AS mismatched_schemas FROM (
+  SELECT schemaname, count(*) AS cnt FROM dbe_perf.stat_xact_all_tables GROUP BY schemaname
+) l FULL JOIN (
+  SELECT schemaname, count(*) AS cnt FROM dbe_perf.global_stat_xact_all_tables GROUP BY schemaname
+) g ON l.schemaname = g.schemaname
+WHERE l.cnt IS DISTINCT FROM g.cnt
+  AND (SELECT count(*) FROM dbe_perf.node_name) = 1;
+ mismatched_schemas 
+--------------------
+                  0
+(1 row)
+

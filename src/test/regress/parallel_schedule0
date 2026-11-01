@@ -503,6 +503,7 @@ test: hw_account_lock
 # ----------
 #test: hw_independent_user hw_user_basic hw_user_revoke hw_user_privilege hw_user_pguser hw_user_namespace
 test: hw_interval_format hw_function_p_3 hw_function_p_4 hw_current_schema hw_functions
+test: dbe_perf_global_stat_xact_all_tables
 #test: hw_function_p_1 hw_function_p_2#
 test: hw_dba_enable_partition hw_tablespace
 test: hw_procedure_define 
