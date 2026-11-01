@@ -1020,3 +1020,19 @@ select 'aa'||cast(null as oid);
  
 (1 row)
 
+-- lpad/rpad/repeat: result exceeding MaxAllocSize must be rejected up front (issue 7458)
+select lpad('a', 1073741820, 'a');
+ERROR:  requested length too large
+CONTEXT:  referenced column: lpad
+select rpad('a', 1073741820, 'a');
+ERROR:  requested length too large
+CONTEXT:  referenced column: rpad
+select repeat('a', 1073741820);
+ERROR:  requested length too large
+CONTEXT:  referenced column: repeat
+select length(lpad('a', 5, 'xy')), length(rpad('a', 5, 'xy')), length(repeat('ab', 3));
+ length | length | length 
+--------+--------+--------
+      5 |      5 |      6
+(1 row)
+

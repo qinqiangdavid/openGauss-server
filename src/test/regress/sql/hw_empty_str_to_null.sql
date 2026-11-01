@@ -230,3 +230,8 @@ select 'aa'||cast(null as macaddr);
 select 'aa'||cast(null as uuid);
 select 'aa'||cast(null as tsvector);
 select 'aa'||cast(null as oid);
+-- lpad/rpad/repeat: result exceeding MaxAllocSize must be rejected up front (issue 7458)
+select lpad('a', 1073741820, 'a');
+select rpad('a', 1073741820, 'a');
+select repeat('a', 1073741820);
+select length(lpad('a', 5, 'xy')), length(rpad('a', 5, 'xy')), length(repeat('ab', 3));
