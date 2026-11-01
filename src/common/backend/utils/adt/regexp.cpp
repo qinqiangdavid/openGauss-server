@@ -998,6 +998,7 @@ Datum regexp_instr_core(text* src, text* pattern, int position,
     /* search for the pattern, perhaps repeatedly */
     while (index < occurrence && RE_wchar_execute(cpattern, wide_str, wide_len,
                                                   start_search, 1, pmatch)) {
+        CHECK_FOR_INTERRUPTS();
         start = pmatch[0].rm_so;
         end = pmatch[0].rm_eo;
 
