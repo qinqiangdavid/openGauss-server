@@ -62,6 +62,14 @@ delimiter
 delimiter "sdsd sd"
 select 1"sdsd sd"
 delimiter ;
+--Test an unquoted delimiter that mixes letters with other characters is rejected as a whole, not truncated
+delimiter abc@&""adc
+show delimiter_name;
+select 1;
+delimiter abc1
+show delimiter_name;
+delimiter @&abc
+show delimiter_name;
 
 -- test delimiter use in create procedure situation
 -- report gram error in server ,not subprogram end error, success in plugin 
