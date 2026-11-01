@@ -34,6 +34,8 @@ declare
   log_line_prefix varchar;
   cols_def varchar;
 begin
+	-- No DISTRIBUTE BY here: a single node rejects it, and a coordinator gives
+	-- log_fdw foreign tables ROUNDROBIN by default (DefineRelation).
 	CREATE FOREIGN TABLE IF NOT EXISTS public.gs_profile_log_ft(
 	  dirname  text,
 	  filename text,
@@ -49,7 +51,7 @@ begin
 	  reqcount bigint,
 	  reqsize  bigint,
 	  requsec  bigint
-	) server log_srv OPTIONS( logtype 'gs_profile', master_only 'true', latest_files '2') DISTRIBUTE BY ROUNDROBIN;
+	) server log_srv OPTIONS( logtype 'gs_profile', master_only 'true', latest_files '2');
 
 	CREATE FOREIGN TABLE IF NOT EXISTS public.gs_pg_log_ft(
 	  dirname  text,
@@ -77,7 +79,7 @@ begin
 	  mod text,
 	  level text,
 	  msg text
-	) server log_srv OPTIONS( logtype 'pg_log', master_only 'true', latest_files '2')  DISTRIBUTE BY ROUNDROBIN;
+	) server log_srv OPTIONS( logtype 'pg_log', master_only 'true', latest_files '2');
 
 	CREATE VIEW public.gs_pg_log_v AS 
             SELECT * FROM public.gs_pg_log_ft order by hostname, dirname, filename, logtime;
