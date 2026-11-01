@@ -38,12 +38,13 @@ ALTER TABLE test_at_modify_syntax MODIFY COLUMN b int PRIMARY KEY;
 DROP TABLE test_at_modify_syntax;
 
 -- test modify syntax with on update and comment
-CREATE TABLE at_change_comment(col1 timestamp not null comment 'last changed time' default current_timestamp); -- ERROR, comment clause must be after column constraints
+CREATE TABLE at_change_comment(col1 timestamp not null comment 'last changed time' default current_timestamp); -- comment clause can be interleaved with column constraints
+DROP TABLE at_change_comment;
 create table at_modify_comment(col1 timestamp not null default current_timestamp comment 'last changed time');
 \d+ at_modify_comment
 ALTER TABLE at_modify_comment MODIFY col1 comment 'last changed time'; -- ERROR
 ALTER TABLE at_modify_comment MODIFY COLUMN col1 comment 'last changed time'; -- ERROR
-ALTER TABLE at_modify_comment MODIFY COLUMN col1 timestamp not null comment 'last changed time' default current_timestamp; -- ERROR, comment clause must be after column constraints
+ALTER TABLE at_modify_comment MODIFY COLUMN col1 timestamp not null comment 'last changed time' default current_timestamp; -- comment clause can be interleaved with column constraints
 ALTER TABLE at_modify_comment MODIFY column col1 timestamp not null default current_timestamp on update current_timestamp comment 'last changed time';
 \d+ at_modify_comment
 ALTER TABLE at_modify_comment MODIFY col1 timestamp on update current_timestamp;
@@ -503,7 +504,9 @@ DROP TABLE test_at_change_syntax;
 -- test modify syntax with on update and comment
 CREATE TABLE at_change_comment(col1 timestamp not null default current_timestamp comment 'last changed time');
 \d+ at_change_comment
-ALTER TABLE at_change_comment CHANGE COLUMN col1 col2 timestamp not null comment 'last changed time' default current_timestamp on update current_timestamp; -- ERROR, comment clause must be after column constraints
+ALTER TABLE at_change_comment CHANGE COLUMN col1 col2 timestamp not null comment 'last changed time' default current_timestamp on update current_timestamp; -- comment clause can be interleaved with column constraints
+\d+ at_change_comment
+ALTER TABLE at_change_comment CHANGE COLUMN col2 col1 timestamp not null default current_timestamp comment 'last changed time';
 ALTER TABLE at_change_comment CHANGE COLUMN col1 col2 timestamp not null default current_timestamp on update current_timestamp comment 'last changed time';
 \d+ at_change_comment
 ALTER TABLE at_change_comment CHANGE col2 col1 timestamp on update current_timestamp;
