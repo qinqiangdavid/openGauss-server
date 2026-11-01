@@ -1163,3 +1163,5 @@ test: dump_alter_index_disable
 test: to_timestamp_default cast
 
 test: dump_alter_index_invisible nls_lower
+
+test: datavec_sparsevec_input
