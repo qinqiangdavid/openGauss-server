@@ -98,6 +98,21 @@ select regexp_instr('abc'||chr(10)||'def', '^(a|d)?.', 1, 2, 1, 'm');
 select regexp_instr('smishtm1_23','^\w+$',3);
 select regexp_instr('smishtm1_23','\w+$',3);
 
+-- regexp_instr must respond to query cancel between successive matches
+set statement_timeout = 1000;
+do $$
+declare
+    t0 timestamptz := clock_timestamp();
+begin
+    perform regexp_instr(repeat('xxab', 32000), '(?<=xx|yy)ab', 1, 32000);
+    raise notice 'regexp_instr was not canceled';
+exception
+    when query_canceled then
+        raise notice 'regexp_instr canceled within 5s: %', clock_timestamp() - t0 < interval '5 seconds';
+end
+$$;
+reset statement_timeout;
+
 -- test regexp_substr(source_char, pattern [, position [, occurrence [, match_param]]])
 select regexp_substr('', '[^ ]+');
 select regexp_substr(null, '[^ ]+');
