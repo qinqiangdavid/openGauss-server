@@ -110,4 +110,7 @@ select * from INT16_TBL2 order by 3;
 select * from INT16_TBL2 order by 3;
 drop table if exists INT16_TBL2;
 
+-- prefix minus on int16 must resolve to int16um and stay int16 (not fall back to float8um)
+select pg_typeof(-9999::int16);
+select (-170141183460469231731687303715884105727::int16)::text = '-170141183460469231731687303715884105727' as exact;
 DROP SCHEMA schema_int16 CASCADE;
