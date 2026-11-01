@@ -966,14 +966,28 @@ create or replace package pck2 is
     procedure pkg_mem_case(a int,self1 inout int);
 end pck2;
 /
+ERROR:  function declared in package specification and package body must be the same, function: pkg_mem_case
 select count(*) from pg_proc where proname = 'pkg_mem_case';
  count 
 -------
-     1
+     0
 (1 row)
 
 drop package pck2;
-NOTICE:  drop cascades to function plpgsql_override_out.pkg_mem_case(integer,integer)
+ERROR:  package pck2 does not exist
+-- members differing only in IN/INOUT have the same proargtypes without proc_outparam_override
+create or replace package pck3 is
+    procedure pkg_mem_case3(a int,self1 int);
+    procedure pkg_mem_case3(a int,self1 inout int);
+end pck3;
+/
+ERROR:  function declared duplicate: pkg_mem_case3
+select count(*) from pg_proc where proname = 'pkg_mem_case3';
+ count 
+-------
+     0
+(1 row)
+
 set plsql_compile_check_options='';
 drop package body if exists pck1;
 drop package body pck1;

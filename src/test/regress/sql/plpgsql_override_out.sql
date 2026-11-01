@@ -725,6 +725,13 @@ end pck2;
 /
 select count(*) from pg_proc where proname = 'pkg_mem_case';
 drop package pck2;
+-- members differing only in IN/INOUT have the same proargtypes without proc_outparam_override
+create or replace package pck3 is
+    procedure pkg_mem_case3(a int,self1 int);
+    procedure pkg_mem_case3(a int,self1 inout int);
+end pck3;
+/
+select count(*) from pg_proc where proname = 'pkg_mem_case3';
 
 set plsql_compile_check_options='';
 drop package body if exists pck1;
