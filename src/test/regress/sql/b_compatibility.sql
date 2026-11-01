@@ -152,6 +152,25 @@ select timestampdiff(minute, '2018-01-01 01:01:01.000001'::timestamp, '2019-02-0
 select timestampdiff(second, '2018-01-01 01:01:01.000001'::timestamp, '2019-02-02 02:02:02.000002'::timestamp);
 select timestampdiff(microsecond, '2018-01-01 01:01:01.000001'::timestamp, '2019-02-02 02:02:02.000002'::timestamp);
 
+-- end time-of-day earlier than start time-of-day: the borrowed day must not be counted twice
+select timestampdiff(hour, '2025-06-16 18:01:59'::timestamp, '2025-06-17 16:30:00'::timestamp);
+select timestampdiff(hour, '2025-06-17 16:30:00'::timestamp, '2025-06-16 18:01:59'::timestamp);
+select timestamp_diff('hour', '2025-06-16 18:01:59'::timestamp, '2025-06-17 16:30:00'::timestamp);
+select timestampdiff(day, '2025-06-16 18:01:59'::timestamp, '2025-06-17 16:30:00'::timestamp);
+select timestampdiff(minute, '2025-06-16 18:01:59'::timestamp, '2025-06-17 16:30:00'::timestamp);
+select timestampdiff(second, '2025-06-16 18:01:59'::timestamp, '2025-06-17 16:30:00'::timestamp);
+select timestampdiff(hour, '2025-06-16 10:00:00'::timestamp, '2025-06-17 08:00:00'::timestamp);
+select timestampdiff(hour, '2025-06-16 10:00:00'::timestamp, '2025-06-17 10:00:00'::timestamp);
+select timestampdiff(hour, '2025-06-16 10:00:00'::timestamp, '2025-06-17 12:00:00'::timestamp);
+-- less than one day across a year boundary
+select timestampdiff(hour, '2024-12-31 23:00:00'::timestamp, '2025-01-01 01:00:00'::timestamp);
+select timestampdiff(day, '2024-12-31 23:00:00'::timestamp, '2025-01-01 01:00:00'::timestamp);
+select timestampdiff(hour, '2025-01-01 01:00:00'::timestamp, '2024-12-31 23:00:00'::timestamp);
+-- borrow from the fractional second
+select timestampdiff(day, '2025-06-16 10:00:00.5'::timestamp, '2025-06-17 10:00:00'::timestamp);
+select timestampdiff(hour, '2025-06-16 10:00:00.5'::timestamp, '2025-06-17 10:00:00'::timestamp);
+select timestampdiff(second, '2025-06-16 10:00:00.5'::timestamp, '2025-06-17 10:00:00'::timestamp);
+
 -- now()
 select timestampdiff(year, '2018-01-01', now());
 select timestampdiff(quarter, '2018-01-01', now());
