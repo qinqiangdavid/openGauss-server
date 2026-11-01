@@ -382,6 +382,24 @@ execute p71(1);
 drop index itest_bypass_sq7;
 execute p71(1);
 
+-- bigint params into int4/int2/bool columns and numeric into bigint column:
+-- the assignment casts int8->int4(480), int8->int2(714), int8->bool(3177)
+-- and numeric->int8(1779) are in the bypass white-list
+drop table if exists test_bypass_bigint;
+create table test_bypass_bigint(c1 int4, c2 int2, c3 bool, c4 bigint);
+prepare p_bigint1(bigint, bigint, bigint, numeric) as insert into test_bypass_bigint values($1,$2,$3,$4);
+--bypass
+explain execute p_bigint1(1,1,1,1);
+execute p_bigint1(1,2,0,4);
+execute p_bigint1(2147483647,32767,1,9223372036854775807);
+--overflow reports the same error as the non-bypass path
+execute p_bigint1(2147483648,1,1,1);
+execute p_bigint1(1,32768,1,1);
+execute p_bigint1(1,1,1,9223372036854775808);
+select * from test_bypass_bigint order by c1;
+deallocate p_bigint1;
+drop table test_bypass_bigint;
+
 reset enable_seqscan;
 reset enable_bitmapscan;
 reset opfusion_debug_mode;
