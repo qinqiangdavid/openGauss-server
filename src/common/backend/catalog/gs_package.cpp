@@ -1851,6 +1851,17 @@ bool isSameArgList(CreateFunctionStmt* stmt1, CreateFunctionStmt* stmt2)
     int length2 = list_length(argList2);
     bool enable_outparam_override = enable_out_param_override();
     bool isSameName = true;
+    /*
+     * Without proc_outparam_override, pg_proc identifies a member by its non-OUT argument
+     * types (proargtypes), so IN and INOUT of the same type give the same signature. Two
+     * declarations (or two definitions) that differ only in such modes can not coexist;
+     * treating them as different overloads lets the later one silently overwrite the earlier
+     * one in pg_proc. So a mode-only difference must not make them different here, and the
+     * caller reports the conflict. A declaration and a definition that differ in mode are
+     * still not paired.
+     */
+    bool modeOnlyDiffConflicts = !enable_outparam_override &&
+        (stmt1->isFunctionDeclare == stmt2->isFunctionDeclare);
     FunctionParameter** arr1 = (FunctionParameter**)palloc0(length1 * sizeof(FunctionParameter*));
     FunctionParameter** arr2 = (FunctionParameter**)palloc0(length2 * sizeof(FunctionParameter*));
     FunctionParameter* fp1 = NULL;
@@ -1981,7 +1992,7 @@ bool isSameArgList(CreateFunctionStmt* stmt1, CreateFunctionStmt* stmt2)
         }
         /* If table of type shold check its base type */
         if (isTableOf1 == isTableOf2 && isTableOf1 == true) {
-            if (baseOid1 != baseOid2 || fp1->mode != fp2->mode) {
+            if (baseOid1 != baseOid2 || (fp1->mode != fp2->mode && !modeOnlyDiffConflicts)) {
                 pfree(arr1);
                 pfree(arr2);
                 return false;
@@ -1995,7 +2006,7 @@ bool isSameArgList(CreateFunctionStmt* stmt1, CreateFunctionStmt* stmt2)
         if ((stmt1->isProcedure || stmt2->isProcedure) && (fp1->mode != fp2->mode)) {
             if (enable_outparam_override && length1 == length2) {
                 sameParamtypNum += 1;
-            } else {
+            } else if (!modeOnlyDiffConflicts) {
                 pfree(arr1);
                 pfree(arr2);
                 return false;
