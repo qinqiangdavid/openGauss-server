@@ -83,6 +83,8 @@ static Node* transformAExprIn(ParseState* pstate, A_Expr* a);
 static Node* transformUserSetElem(ParseState* pstate, UserSetElem *elem);
 static Node* transformUserVar(UserVar *uservar);
 static Node* transformFuncCall(ParseState* pstate, FuncCall* fn);
+static bool InHierarchicalQuery(ParseState* pstate);
+static bool IsPriorOperatorInTargetList(ParseState* pstate, FuncCall* fn);
 static Node* transformCaseExpr(ParseState* pstate, CaseExpr* c);
 static Node* transformSubLink(ParseState* pstate, SubLink* sublink);
 static Node* transformSelectIntoVarList(ParseState* pstate, SelectIntoVarList* sis);
@@ -404,6 +406,21 @@ Node *transformExprRecurse(ParseState *pstate, Node *expr)
             }
 
             if (((ColumnRef*)expr)->prior && t_thrd.proc->workingVersionNum >= PRIOR_EXPR_VERSION_NUM) {
+                /*
+                 * PRIOR reads the parent row of a hierarchical query.  Outside a
+                 * START WITH / CONNECT BY query block there is no parent row, and
+                 * evaluating it would only fail later in the executor with an
+                 * internal error, so reject it here.
+                 */
+                if (!InHierarchicalQuery(pstate)) {
+                    ereport(ERROR,
+                           (errcode(ERRCODE_FEATURE_NOT_SUPPORTED), errmodule(MOD_PARSER),
+                            errmsg("Invalid PRIOR reference."),
+                            errdetail("PRIOR operator found in non-hierarchical query."),
+                            errcause("PRIOR is only valid in a query with START WITH / CONNECT BY."),
+                            erraction("Please check and revise your query"),
+                            parser_errposition(pstate, ((ColumnRef*)expr)->location)));
+                }
                 PriorExpr* p_expr = makeNode(PriorExpr);
                 p_expr->node = result;
                 result = (Node*)p_expr;
@@ -1782,6 +1799,62 @@ bool IsStartWithFunction(FuncExpr* result)
            result->funcid == CONNECT_BY_ROOT_FUNCOID;
 }
 
+/*
+ * Whether pstate, or a query level enclosing it, is a START WITH / CONNECT BY
+ * query block.  p_addStartInfo is set as soon as the block is known to carry a
+ * START WITH clause, p_hasStartWith once it has been rewritten, and
+ * p_split_where_for_swcb while its WHERE quals are being split.
+ */
+static bool InHierarchicalQuery(ParseState* pstate)
+{
+    for (ParseState* ps = pstate; ps != NULL; ps = ps->parentParseState) {
+        if (ps->p_addStartInfo || ps->p_hasStartWith || ps->p_split_where_for_swcb) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/*
+ * The grammar turns PRIOR(col) at the top of a select-list item into a call of
+ * a function named prior (target_el in gram.y), so that a user-defined prior()
+ * keeps working there; everywhere else PRIOR(col) is the PRIOR operator.  The
+ * rewritten call is recognizable: a bare "prior" with one plain ColumnRef
+ * argument whose location is 0, the marker c_expr puts on PRIOR '(' columnref ')'.
+ *
+ * In a hierarchical query where no function prior accepting one argument is
+ * visible, the call cannot mean a function, so give it back the PRIOR operator
+ * meaning it has in WHERE / CONNECT BY.  The lookup is the same namespace search
+ * function resolution starts from, so a user-defined prior() still wins.
+ */
+static bool IsPriorOperatorInTargetList(ParseState* pstate, FuncCall* fn)
+{
+    /* same test as the START WITH function check in transformFuncCall: this block is hierarchical */
+    if (!(pstate->p_hasStartWith || pstate->p_split_where_for_swcb) ||
+        t_thrd.proc->workingVersionNum < PRIOR_EXPR_VERSION_NUM) {
+        return false;
+    }
+    if (list_length(fn->funcname) != 1 || list_length(fn->args) != 1 ||
+        pg_strcasecmp(strVal(linitial(fn->funcname)), "prior") != 0) {
+        return false;
+    }
+    if (fn->agg_order != NIL || fn->agg_filter != NULL || fn->aggKeep != NULL || fn->agg_within_group ||
+        fn->agg_star || fn->agg_distinct || fn->func_variadic || fn->over != NULL) {
+        return false;
+    }
+
+    Node* arg = (Node*)linitial(fn->args);
+    if (!IsA(arg, ColumnRef)) {
+        return false;
+    }
+    ColumnRef* cref = (ColumnRef*)arg;
+    if (cref->prior || cref->location != 0 || IsA(llast(cref->fields), A_Star)) {
+        return false;
+    }
+
+    return FuncnameGetCandidates(fn->funcname, 1, NIL, true, true, false) == NULL;
+}
+
 static bool NeedExtractOutParam(FuncCall* fn, Node* result)
 {
     if (result == NULL || nodeTag(result) != T_FuncExpr) {
@@ -1886,6 +1959,14 @@ static Node* transformFuncCall(ParseState* pstate, FuncCall* fn)
     List* targs = NIL;
     ListCell* args = NULL;
     Node* result = NULL;
+
+    /* PRIOR(col) in a select list of a hierarchical query, see IsPriorOperatorInTargetList */
+    if (IsPriorOperatorInTargetList(pstate, fn)) {
+        /* work on a copy: the raw select list is transformed more than once by the SWCB rewrite */
+        ColumnRef* cref = (ColumnRef*)copyObject(linitial(fn->args));
+        cref->prior = true;
+        return transformExprRecurse(pstate, (Node*)cref);
+    }
 
     /* Transform the list of arguments, skip CursorExpr which transformed later */
     targs = NIL;

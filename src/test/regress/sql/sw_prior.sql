@@ -705,4 +705,21 @@ FROM test_type_table
 START WITH id = 1
 CONNECT BY PRIOR id = pid GROUP BY PRIOR "text" HAVING PRIOR "text" LIKE '%second%';
 
+-- OG-1156: PRIOR(col) at the top of a select-list item, and PRIOR outside a hierarchical query
+create schema sw_prior_og1156;
+set current_schema = sw_prior_og1156;
+create table sw_prior_t(id int, pid int);
+insert into sw_prior_t values (1, NULL), (2, 1), (3, 2);
+-- no function prior() is visible: PRIOR(id) is the PRIOR operator, as it already is with a column alias
+SELECT id, PRIOR(id) FROM sw_prior_t START WITH pid IS NULL CONNECT BY PRIOR id = pid ORDER BY id;
+SELECT id, PRIOR(id) AS parent FROM sw_prior_t START WITH pid IS NULL CONNECT BY PRIOR id = pid ORDER BY id;
+-- a visible function prior() still takes PRIOR(id) in the select list
+create function prior(id int) returns int LANGUAGE plpgsql AS $$ begin return id * 3; end; $$;
+SELECT id, PRIOR(id) FROM sw_prior_t START WITH pid IS NULL CONNECT BY PRIOR id = pid ORDER BY id;
+drop function prior(int);
+-- PRIOR without START WITH / CONNECT BY
+SELECT id FROM sw_prior_t WHERE PRIOR id = pid;
+reset current_schema;
+drop schema sw_prior_og1156 cascade;
+
 reset timezone;
