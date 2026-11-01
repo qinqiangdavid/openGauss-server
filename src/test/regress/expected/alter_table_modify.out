@@ -102,10 +102,8 @@ Options: orientation=row, compression=no
 
 DROP TABLE test_at_modify_syntax;
 -- test modify syntax with on update and comment
-CREATE TABLE at_change_comment(col1 timestamp not null comment 'last changed time' default current_timestamp); -- ERROR, comment clause must be after column constraints
-ERROR:  syntax error at or near "default"
-LINE 1: ...l1 timestamp not null comment 'last changed time' default cu...
-                                                             ^
+CREATE TABLE at_change_comment(col1 timestamp not null comment 'last changed time' default current_timestamp); -- comment clause can be interleaved with column constraints
+DROP TABLE at_change_comment;
 create table at_modify_comment(col1 timestamp not null default current_timestamp comment 'last changed time');
 \d+ at_modify_comment
                                          Table "atbdb_schema.at_modify_comment"
@@ -123,10 +121,7 @@ ALTER TABLE at_modify_comment MODIFY COLUMN col1 comment 'last changed time'; --
 ERROR:  syntax error at or near "'last changed time'"
 LINE 1: ...ABLE at_modify_comment MODIFY COLUMN col1 comment 'last chan...
                                                              ^
-ALTER TABLE at_modify_comment MODIFY COLUMN col1 timestamp not null comment 'last changed time' default current_timestamp; -- ERROR, comment clause must be after column constraints
-ERROR:  syntax error at or near "default"
-LINE 1: ...l1 timestamp not null comment 'last changed time' default cu...
-                                                             ^
+ALTER TABLE at_modify_comment MODIFY COLUMN col1 timestamp not null comment 'last changed time' default current_timestamp; -- comment clause can be interleaved with column constraints
 ALTER TABLE at_modify_comment MODIFY column col1 timestamp not null default current_timestamp on update current_timestamp comment 'last changed time';
 \d+ at_modify_comment
                                                        Table "atbdb_schema.at_modify_comment"
@@ -1334,10 +1329,16 @@ CREATE TABLE at_change_comment(col1 timestamp not null default current_timestamp
 Has OIDs: no
 Options: orientation=row, compression=no
 
-ALTER TABLE at_change_comment CHANGE COLUMN col1 col2 timestamp not null comment 'last changed time' default current_timestamp on update current_timestamp; -- ERROR, comment clause must be after column constraints
-ERROR:  syntax error at or near "default"
-LINE 1: ...l2 timestamp not null comment 'last changed time' default cu...
-                                                             ^
+ALTER TABLE at_change_comment CHANGE COLUMN col1 col2 timestamp not null comment 'last changed time' default current_timestamp on update current_timestamp; -- comment clause can be interleaved with column constraints
+\d+ at_change_comment
+                                                       Table "atbdb_schema.at_change_comment"
+ Column |            Type             |                           Modifiers                            | Storage | Stats target |    Description    
+--------+-----------------------------+----------------------------------------------------------------+---------+--------------+-------------------
+ col2   | timestamp without time zone | not null default pg_systimestamp() on update pg_systimestamp() | plain   |              | last changed time
+Has OIDs: no
+Options: orientation=row, compression=no
+
+ALTER TABLE at_change_comment CHANGE COLUMN col2 col1 timestamp not null default current_timestamp comment 'last changed time';
 ALTER TABLE at_change_comment CHANGE COLUMN col1 col2 timestamp not null default current_timestamp on update current_timestamp comment 'last changed time';
 \d+ at_change_comment
                                                        Table "atbdb_schema.at_change_comment"

@@ -226,6 +226,7 @@ static RangeVar *makeRangeVarFromAnyName(List *names, int position, core_yyscan_
 static void SplitColQualList(List *qualList,
 							 List **constraintList, CollateClause **collClause,
 							 core_yyscan_t yyscanner);
+static List *SplitColumnOptions(List *qualList, List **columnOptions);
 static void SplitColQualList(List *qualList,
 							 List **constraintList, CollateClause **collClause, ClientLogicColumnRef **clientLogicColumnRef,
 							 core_yyscan_t yyscanner);
@@ -579,7 +580,7 @@ static void contain_unsupport_node(Node* node, bool* has_unsupport_default_node)
 %type <fetchlimit> select_limit opt_select_limit limit_clause
 
 /* b compatibility: comment start */
-%type <list>	opt_index_options index_options opt_table_options table_options opt_column_options column_options
+%type <list>	opt_index_options index_options opt_table_options table_options
 %type <node>	index_option table_option column_option table_index_option
 %type <list>	opt_table_index_options table_index_options
 
@@ -744,7 +745,7 @@ static void contain_unsupport_node(Node* node, bool* has_unsupport_default_node)
 
 %type <node>	TableConstraint TableLikeClause ForeignTableLikeClause
 %type <ival>	excluding_option_list TableLikeOptionList TableLikeIncludingOption TableLikeExcludingOption
-%type <list>	ColQualList WithOptions
+%type <list>	ColQualList ColQualOptList WithOptions
 %type <node>	ColConstraint ColConstraintElem ConstraintAttr InformationalConstraintElem
 %type <ival>	key_actions key_delete key_match key_update key_action
 %type <ival>	ConstraintAttributeSpec ConstraintAttributeElem
@@ -3982,10 +3983,12 @@ modify_column_cmds:
 			| modify_column_cmds ',' modify_column_cmd	{ $$ = lappend($$, $3); }
 			;
 modify_column_cmd:
-			ColId Typename opt_charset ColQualList opt_column_options add_column_first_after
+			ColId Typename opt_charset ColQualOptList add_column_first_after
 				{
-					AlterTableCmd *n = (AlterTableCmd *)$6;
-					if ($4 == NULL && $5 == NULL && n->is_first == false && n->after_name == NULL && !ENABLE_MODIFY_COLUMN) {
+					AlterTableCmd *n = (AlterTableCmd *)$5;
+					List *colOptions = NIL;
+					List *colQuals = SplitColumnOptions($4, &colOptions);
+					if (colQuals == NIL && colOptions == NIL && n->is_first == false && n->after_name == NULL && !ENABLE_MODIFY_COLUMN) {
 						ColumnDef *def = makeNode(ColumnDef);
 						n->subtype = AT_AlterColumnType;
 						n->name = $1;
@@ -4018,7 +4021,7 @@ modify_column_cmd:
 						def->colname = $1;
 						def->typname = $2;
 						def->typname->charset = $3;
-						def->columnOptions = $5;
+						def->columnOptions = colOptions;
 						def->kvtype = ATT_KV_UNDEFINED;
 						def->inhcount = 0;
 						def->is_local = true;
@@ -4031,7 +4034,7 @@ modify_column_cmd:
 						def->collOid = InvalidOid;
 						def->fdwoptions = NULL;
 						def->update_default = NULL;
-						SplitColQualList($4, &def->constraints, &def->collClause, &def->clientLogicColumnRef, yyscanner);
+						SplitColQualList(colQuals, &def->constraints, &def->collClause, &def->clientLogicColumnRef, yyscanner);
 						n->subtype = AT_ModifyColumn;
 						n->name = $1;
 						n->def = (Node *)def;
@@ -5060,7 +5063,7 @@ alter_table_cmd:
 				{
 					$$ = $2;
 				}
-			| MODIFY_P COLUMN ColId Typename opt_charset ColQualList opt_column_options add_column_first_after
+			| MODIFY_P COLUMN ColId Typename opt_charset ColQualOptList add_column_first_after
 				{
 #ifdef ENABLE_MULTIPLE_NODES
 					const char* message = "Un-support feature";
@@ -5081,7 +5084,7 @@ alter_table_cmd:
 					def->colname = $3;
 					def->typname = $4;
 					def->typname->charset = $5;
-					def->columnOptions = $7;
+					List *colQuals = SplitColumnOptions($6, &def->columnOptions);
 					def->kvtype = ATT_KV_UNDEFINED;
 					def->inhcount = 0;
 					def->is_local = true;
@@ -5094,14 +5097,14 @@ alter_table_cmd:
 					def->cooked_default = NULL;
 					def->collOid = InvalidOid;
 					def->fdwoptions = NULL;
-					SplitColQualList($6, &def->constraints, &def->collClause, &def->clientLogicColumnRef, yyscanner);
-					AlterTableCmd *n = (AlterTableCmd *)$8;
+					SplitColQualList(colQuals, &def->constraints, &def->collClause, &def->clientLogicColumnRef, yyscanner);
+					AlterTableCmd *n = (AlterTableCmd *)$7;
 					n->subtype = AT_ModifyColumn;
 					n->name = $3;
 					n->def = (Node *)def;
 					$$ = (Node *)n;
 				}
-			| CHANGE opt_column ColId ColId Typename opt_charset ColQualList opt_column_options add_column_first_after
+			| CHANGE opt_column ColId ColId Typename opt_charset ColQualOptList add_column_first_after
 				{
 #ifdef ENABLE_MULTIPLE_NODES
 					const char* message = "Un-support feature";
@@ -5122,7 +5125,7 @@ alter_table_cmd:
 					def->colname = $4;
 					def->typname = $5;
 					def->typname->charset = $6;
-					def->columnOptions = $8;
+					List *colQuals = SplitColumnOptions($7, &def->columnOptions);
 					def->kvtype = ATT_KV_UNDEFINED;
 					def->inhcount = 0;
 					def->is_local = true;
@@ -5135,8 +5138,8 @@ alter_table_cmd:
 					def->cooked_default = NULL;
 					def->collOid = InvalidOid;
 					def->fdwoptions = NULL;
-					SplitColQualList($7, &def->constraints, &def->collClause, &def->clientLogicColumnRef, yyscanner);
-					AlterTableCmd *n = (AlterTableCmd *)$9;
+					SplitColQualList(colQuals, &def->constraints, &def->collClause, &def->clientLogicColumnRef, yyscanner);
+					AlterTableCmd *n = (AlterTableCmd *)$8;
 					n->subtype = AT_ModifyColumn;
 					n->name = $3;
 					n->def = (Node *)def;
@@ -5670,20 +5673,6 @@ opt_comma:
         | ','
         ;
 
-opt_column_options:
-			 /* EMPTY */						{ $$ = NIL; }
-			 | column_options  { $$ = $1; }
-			 ;
-column_options:
-			 column_option
-			 {
-					$$ = list_make1($1);
-			 }
-			 | column_options column_option
-			 {
-					$$ = lcons($2, $1);
-			 }
-			 ;
 column_option:
 			 COMMENT Sconst
 			 {
@@ -7622,7 +7611,7 @@ TypedTableElement:
 			| TableConstraint	 				{ $$ = $1; }
 		;
 
-columnDef:	ColId Typename opt_charset KVType ColCmprsMode create_generic_options ColQualList opt_column_options
+columnDef:	ColId Typename opt_charset KVType ColCmprsMode create_generic_options ColQualOptList
 				{
 					ColumnDef *n = makeNode(ColumnDef);
 					n->colname = $1;
@@ -7640,14 +7629,14 @@ columnDef:	ColId Typename opt_charset KVType ColCmprsMode create_generic_options
 					n->cooked_default = NULL;
 					n->collOid = InvalidOid;
 					n->fdwoptions = $6;
+					List *colQuals = SplitColumnOptions($7, &n->columnOptions);
 					if ($4 == ATT_KV_UNDEFINED) {
-						SplitColQualList($7, &n->constraints, &n->collClause, &n->clientLogicColumnRef,
+						SplitColQualList(colQuals, &n->constraints, &n->collClause, &n->clientLogicColumnRef,
 									 yyscanner);
 					} else {
-						SplitColQualList($7, &n->constraints, &n->collClause,
+						SplitColQualList(colQuals, &n->constraints, &n->collClause,
 										yyscanner);
 					}
-					n->columnOptions = $8;
 					$$ = (Node *)n;
 				}
 		;
@@ -7732,6 +7721,17 @@ WithOptions:
 
 ColQualList:
 			ColQualList ColConstraint				{ $$ = lappend($1, $2); }
+			| /*EMPTY*/								{ $$ = NIL; }
+		;
+
+/*
+ * Column qualifiers of a table column definition: column constraints and
+ * B-compatible column options (COMMENT) in any order, as MySQL accepts
+ * them.  SplitColumnOptions() separates the options out again.
+ */
+ColQualOptList:
+			ColQualOptList ColConstraint			{ $$ = lappend($1, $2); }
+			| ColQualOptList column_option			{ $$ = lappend($1, $2); }
 			| /*EMPTY*/								{ $$ = NIL; }
 		;
 
@@ -33169,6 +33169,32 @@ makeRangeVarFromAnyName(List *names, int position, core_yyscan_t yyscanner)
 	r->buckets = NIL;
 
 	return r;
+}
+
+/*
+ * Separate column options (COMMENT) from a ColQualOptList and return the
+ * remaining column qualifiers.  Options are prepended, so that *columnOptions
+ * has the same order as the column_options rule builds: the last COMMENT
+ * written comes first and is the one that takes effect.
+ */
+static List *
+SplitColumnOptions(List *qualList, List **columnOptions)
+{
+	ListCell   *cell;
+	List	   *quals = NIL;
+
+	*columnOptions = NIL;
+	foreach (cell, qualList)
+	{
+		Node   *n = (Node *) lfirst(cell);
+
+		if (IsA(n, CommentStmt))
+			*columnOptions = lcons(n, *columnOptions);
+		else
+			quals = lappend(quals, n);
+	}
+	list_free(qualList);
+	return quals;
 }
 
 /* Separate Constraint nodes from COLLATE clauses in a ColQualList */

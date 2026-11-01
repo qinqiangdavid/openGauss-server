@@ -176,6 +176,18 @@ from pg_description pd
          join pg_class pc
               on pd.objoid = pc.oid
 where pc.relname = 'uq_0034';
+-- column comment interleaved with column constraints (OG-1214)
+create table t_comment_order_01(id int comment 'id first' primary key);
+create table t_comment_order_02(id int comment 'c1' not null default 1 comment 'c2' unique, v int comment 'v' check (v > 0));
+alter table t_comment_order_02 add column w int comment 'w' not null default 0;
+select pc.relname, pa.attname, pd.description
+from pg_description pd
+         join pg_class pc on pd.objoid = pc.oid
+         join pg_attribute pa on pa.attrelid = pc.oid and pa.attnum = pd.objsubid
+where pc.relname like 't_comment_order_0%'
+order by 1, 2;
+select attname, attnotnull from pg_attribute where attrelid = 't_comment_order_02'::regclass and attnum > 0 order by attnum;
+drop table t_comment_order_01, t_comment_order_02;
 drop schema b_comments cascade;
 reset search_path;
 \c postgres

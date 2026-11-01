@@ -4557,7 +4557,7 @@ static ObjTree* deparse_AlterRelation(CollectedCommand *cmd, ddl_deparse_context
 
                     get_atttypetypmodcoll(RelationGetRelid(rel), attnum, &typid, &typmod, &typcollation);
 
-                    /* MODIFY_P COLUMN ColId Typename opt_charset ColQualList opt_column_options add_column_first_after
+                    /* MODIFY_P COLUMN ColId Typename opt_charset ColQualOptList add_column_first_after
                      */
                     if (pg_strcasecmp(subcmd->name, def->colname) == 0) {
                         tmp_obj = new_objtree_VA("MODIFY COLUMN %{column}I", 2,
