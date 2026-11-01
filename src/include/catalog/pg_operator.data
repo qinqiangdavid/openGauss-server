@@ -1798,6 +1798,9 @@ DESCR("int16 multiply");
 DATA(insert OID = 6009 ("/"        PGNSP PGUID b f f    34    34    701 0       0 int16div - -));
 DESCR("int16 divide");
 
+DATA(insert OID = 6010 ("-"       PGNSP PGUID l f f     0    34    34     0     0 int16um - -));
+DESCR("negate");
+
 /* set operators */
 DATA(insert OID = 6435 ("="       PGNSP PGUID b t t 3272 3272 16 6435 6436 seteq eqsel eqjoinsel));
 DESCR("equal");
