@@ -181,12 +181,36 @@ void hnswrescan_internal(IndexScanDesc scan, ScanKey keys, int nkeys, ScanKey or
     }
 }
 
+/*
+ * Report one graph search to the executor node's counters, if it collects them.
+ * Called right after GetScanItems, with so->length the ef the search used.
+ */
+static void HnswCountSearch(IndexScanDesc scan, HnswScanOpaque so, bool restart)
+{
+    AnnScanInstrumentation *instr = scan->xs_ann_instr;
+
+    if (instr == NULL) {
+        return;
+    }
+    instr->searches++;
+    if (restart) {
+        instr->restarts++;
+    } else {
+        instr->initialEf = so->length;
+    }
+    instr->candidates += list_length(so->w);
+    if (so->length > instr->finalEf) {
+        instr->finalEf = so->length;
+    }
+}
+
 void check_length(HnswScanOpaque so, IndexScanDesc scan)
 {
     if (list_length(so->w) == 0) {
         LockPage(scan->indexRelation, HNSW_SCAN_LOCK, ShareLock);
         so->length = so->length * 2;
         so->w = GetScanItems(scan, so->value);
+        HnswCountSearch(scan, so, true);
 
         /* Release shared lock */
         UnlockPage(scan->indexRelation, HNSW_SCAN_LOCK, ShareLock);
@@ -235,6 +259,7 @@ bool hnswgettuple_internal(IndexScanDesc scan, ScanDirection dir)
         LockPage(scan->indexRelation, HNSW_SCAN_LOCK, ShareLock);
 
         so->w = GetScanItems(scan, value);
+        HnswCountSearch(scan, so, false);
 
         /* Release shared lock */
         UnlockPage(scan->indexRelation, HNSW_SCAN_LOCK, ShareLock);

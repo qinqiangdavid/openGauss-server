@@ -79,6 +79,12 @@ static TupleTableSlot* AnnIndexNext(AnnIndexScanState* node)
     slot = node->ss.ss_ScanTupleSlot;
     scandesc = node->iss_ScanDesc;
     scandesc->count = (int64_t)node->annCount;
+    /*
+     * Point the AM at this node's counters.  Set it here rather than at
+     * beginscan because the scan descriptor is replaced on every partition
+     * switch; the counters live in the node and so survive that.
+     */
+    scandesc->xs_ann_instr = &node->annInstr;
     isUstore = RelationIsUstoreFormat(node->ss.ss_currentRelation);
     /*
      * ok, now that we have what we need, fetch the next tuple.
@@ -514,6 +520,7 @@ AnnIndexScanState* ExecInitAnnIndexScan(AnnIndexScan* node, EState* estate, int 
     index_state->ss.partScanDirection = node->indexorderdir;
     index_state->ss.ps.ExecProcNode = ExecAnnIndexScan;
     index_state->annCount = node->annCount;
+    /* annInstr starts zeroed by makeNode and accumulates over rescans and partitions */
     /*
      * Miscellaneous initialization
      *

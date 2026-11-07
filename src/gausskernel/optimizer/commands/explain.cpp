@@ -171,6 +171,7 @@ static void show_hash_info(HashState* hashstate, ExplainState* es);
 static void show_vechash_info(VecHashJoinState* hashstate, ExplainState* es);
 static void show_tidbitmap_info(BitmapHeapScanState *planstate, ExplainState *es);
 static void show_instrumentation_count(const char* qlabel, int which, const PlanState* planstate, ExplainState* es);
+static void show_ann_scan_info(const AnnIndexScan* plan, const AnnIndexScanState* planstate, ExplainState* es);
 static void show_removed_rows(int which, const PlanState* planstate, int idx, int smpIdx, int* removeRows);
 static int check_integer_overflow(double var);
 static void show_foreignscan_info(ForeignScanState* fsstate, ExplainState* es);
@@ -2709,6 +2710,7 @@ static void ExplainNode(
             show_scan_qual(plan->qual, "Filter", planstate, ancestors, es);
             if (plan->qual)
                 show_instrumentation_count("Rows Removed by Filter", 1, planstate, es);
+            show_ann_scan_info((AnnIndexScan*)plan, (AnnIndexScanState*)planstate, es);
             break;
         case T_BitmapIndexScan:
             show_scan_qual(((BitmapIndexScan*)plan)->indexqualorig, "Index Cond", planstate, ancestors, es);
@@ -7751,6 +7753,41 @@ static void show_tidbitmap_info(BitmapHeapScanState *planstate, ExplainState *es
             appendStringInfoChar(es->str, '\n');
         }
     }
+}
+
+/*
+ * Show how far an Ann Index Scan had to search to produce its rows.
+ *
+ * "ANN Count" is the planner's estimate of how many index entries the scan
+ * must visit to satisfy the LIMIT after the other quals (LIMIT / selectivity);
+ * the HNSW scan starts its graph search with ef = ANN Count + hnsw_ef_search.
+ * Under ANALYZE, the index AM's runtime counters follow: how many searches it
+ * ran, how many of those were restarts with a doubled ef because the
+ * candidate list ran dry before enough rows passed the filter, the ef of the
+ * first and of the largest search, and the candidates collected over all
+ * searches.  A large ANN Count with few restarts means the planner's estimate
+ * drove the cost; a small one with many restarts means the doubling did.
+ */
+static void show_ann_scan_info(const AnnIndexScan* plan, const AnnIndexScanState* planstate, ExplainState* es)
+{
+    /* the scan uses the truncated value, show the same */
+    if ((int64)plan->annCount > 0) {
+        ExplainPropertyLong("ANN Count", (long)(int64)plan->annCount, es);
+    }
+
+    if (!es->analyze || planstate == NULL) {
+        return;
+    }
+    const AnnScanInstrumentation* instr = &planstate->annInstr;
+    /* only AMs that report (hnsw) fill these in */
+    if (instr->searches == 0) {
+        return;
+    }
+    ExplainPropertyLong("ANN Searches", (long)instr->searches, es);
+    ExplainPropertyLong("ANN Restarts", (long)instr->restarts, es);
+    ExplainPropertyLong("ANN Initial ef", (long)instr->initialEf, es);
+    ExplainPropertyLong("ANN Final ef", (long)instr->finalEf, es);
+    ExplainPropertyLong("ANN Candidates", (long)instr->candidates, es);
 }
 
 /*

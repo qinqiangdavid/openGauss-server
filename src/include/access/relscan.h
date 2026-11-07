@@ -114,6 +114,26 @@ typedef struct HBktTblScanDescData {
 typedef struct HBktTblScanDescData* HBktTblScanDesc;
 
 struct IndexFetchTableData;
+
+/*
+ * Runtime counters of an approximate-nearest-neighbour (ANN) index scan.
+ *
+ * The executor node that drives the scan (AnnIndexScanState) owns one of
+ * these and hands the index AM a pointer to it through
+ * IndexScanDescData.xs_ann_instr; the AM adds to it while it searches.  The
+ * counters accumulate over rescans and partitions, so EXPLAIN ANALYZE shows
+ * the work of the whole node, not of the last scan descriptor only.
+ *
+ * An AM that does not report (e.g. ivfflat) leaves searches at 0.
+ */
+typedef struct AnnScanInstrumentation {
+    int64 searches;   /* graph searches run: the first one of each rescan plus every restart */
+    int64 restarts;   /* searches rerun with a doubled ef because the candidate list ran dry */
+    int64 candidates; /* candidates collected, summed over all searches */
+    int64 initialEf;  /* ef of the first search of a rescan (ANN count + hnsw_ef_search) */
+    int64 finalEf;    /* largest ef any search reached */
+} AnnScanInstrumentation;
+
 /*
  * We use the same IndexScanDescData structure for both amgettuple-based
  * and amgetbitmap-based index scans.  Some fields are only relevant in
@@ -176,6 +196,8 @@ typedef struct IndexScanDescData {
      *xs_ctbuf_hdr. t_bits which is varlength arr
      */
     int64 count;
+    /* ANN scan counters owned by the executor node, or NULL when nobody collects them */
+    AnnScanInstrumentation *xs_ann_instr;
     HeapTupleHeaderData xs_ctbuf_hdr;
     /* DO NOT add any other members here. xs_ctbuf_hdr must be the last one. */
 } IndexScanDescData;
