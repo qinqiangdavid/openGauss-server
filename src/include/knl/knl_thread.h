@@ -3032,6 +3032,7 @@ typedef struct knl_t_buf_context {
     char show_enable_memory_limit_buf[8];
     char show_log_file_mode_buf[8];
     char show_memory_detail_tracking_buf[256];
+    char show_uncontrolled_memory_context_buf[1024];
     char show_tcp_keepalives_idle_buf[16];
     char show_tcp_keepalives_interval_buf[16];
     char show_tcp_keepalives_count_buf[16];

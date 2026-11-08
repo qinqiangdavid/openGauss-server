@@ -884,8 +884,19 @@ static void assign_uncontrolled_memory_context(const char* newval, void* extra)
 /* show the guc parameter -- uncontrolled_memory_context */
 static const char* show_uncontrolled_memory_context(void)
 {
-    const size_t length = 1024;
-    char* buff = static_cast<char*>(MemoryContextAllocZero(SESS_GET_MEM_CXT_GROUP(MEMORY_CONTEXT_CBB), length));
+    /*
+     * Use a thread-local fixed buffer instead of allocating from the
+     * session-level CBB memory context on every call. _ShowOption() always
+     * pstrdup()s the returned pointer into the statement-level context, so the
+     * buffer we return here is only ever read, never retained by the caller.
+     * The previous implementation allocated 1KB via MemoryContextAllocZero in
+     * the long-lived session CBB context and never freed it, so every scan of
+     * pg_settings leaked 1KB until the session ran out of memory. Mirroring the
+     * sibling hooks show_memory_detail_tracking() and show_enable_memory_limit()
+     * removes the leak.
+     */
+    char* buff = t_thrd.buf_cxt.show_uncontrolled_memory_context_buf;
+    const size_t length = sizeof(t_thrd.buf_cxt.show_uncontrolled_memory_context_buf);
     errno_t rc = EOK;
     size_t len;
 
