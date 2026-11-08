@@ -1155,6 +1155,7 @@ test: backup_tool_audit
 
 # to_number func
 test: to_number_default
+test: to_number_int_overflow
 
 test: alter_index_disable
 test: dump_alter_index_disable

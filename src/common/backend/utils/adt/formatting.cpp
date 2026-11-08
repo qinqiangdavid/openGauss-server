@@ -6804,6 +6804,56 @@ static char* NUM_processor(FormatNode* node, NUMDesc* Num, char* inout, char* nu
             *Np->number_p = '\0';
 
         /*
+         * Integer-digit overflow check (A_FORMAT / Oracle compatibility).
+         *
+         * Oracle requires that the number of digits to the LEFT of the decimal
+         * point in the input not exceed the number of integer digit positions
+         * (the '9'/'0' format items) in the mask; otherwise it raises an error.
+         * The original code never checked this: once the mask's integer
+         * positions were exhausted it simply stopped reading (or, when later
+         * mask items kept consuming digits, mis-parsed them), so TO_NUMBER
+         * silently returned a wrong value instead of erroring. For example
+         *   to_number('12345', '999')   silently returned 123, and
+         *   to_number('12345.67', '999.99')  silently returned 12345 / lost the
+         *                                     fraction.
+         *
+         * Surplus leading integer digits show up in two ways:
+         *   1) read_pre already exceeds the mask's integer positions, which
+         *      happens when trailing mask items keep eating integer digits
+         *      (e.g. the '999.99' case above: read_pre becomes 5 > pre 3); or
+         *   2) the mask ran out of integer positions while unread integer
+         *      digits still remain in the input and no decimal point has been
+         *      consumed yet (e.g. the '999' case above).
+         *
+         * The hexadecimal path (IS_X16/IS_x16) reuses read_pre as a value
+         * accumulator rather than a digit counter, so it is excluded.
+         */
+        if (u_sess->attr.attr_sql.sql_compatibility == A_FORMAT && Np->Num->pre >= 0 &&
+            !IS_X16(Np->Num) && !IS_x16(Np->Num)) {
+            bool int_overflow = (Np->read_pre > Np->Num->pre);
+
+            if (!int_overflow && Np->read_dec == FALSE && Np->read_pre >= Np->Num->pre) {
+                for (char* scan_p = Np->inout_p; scan_p < Np->inout + plen; scan_p++) {
+                    if (*scan_p == ' ')
+                        continue;
+                    if (isdigit((unsigned char)*scan_p))
+                        int_overflow = true;
+                    /* first non-blank character decides: a digit here is an
+                     * unread integer digit (overflow); anything else, including
+                     * a decimal point, means the integer part fit. */
+                    break;
+                }
+            }
+
+            if (int_overflow)
+                ereport(ERROR,
+                    (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+                        errmsg("invalid number"),
+                        errdetail("The integer digits of the input value exceed the digit positions "
+                                  "allowed by the format model.")));
+        }
+
+        /*
          * Correction - precision of dec. number
          */
         Np->Num->post = Np->read_post;
