@@ -1158,8 +1158,11 @@ const char* show_collation_connection(void)
         HeapTuple tp = SearchSysCache1(COLLOID, ObjectIdGetDatum(collid));
         if (HeapTupleIsValid(tp)) {
             Form_pg_collation colltup = (Form_pg_collation)GETSTRUCT(tp);
-            char* result = MemoryContextStrdup(
-                SESS_GET_MEM_CXT_GROUP(MEMORY_CONTEXT_EXECUTOR), NameStr(colltup->collname));
+            /*
+             * The only consumer is _ShowOption(), which pstrdup()s the result; allocate in
+             * the caller's context so it is released with it, not kept until session exit.
+             */
+            char* result = pstrdup(NameStr(colltup->collname));
             ReleaseSysCache(tp);
             return result;
         }
