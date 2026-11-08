@@ -142,3 +142,32 @@ select pv_session_memctx_detail(pid, 'TopMemoryContext') from qazxsw;
  t
 (1 row)
 
+----test _ShowOption must not leak show_hook buffers allocated in session-level memory context
+----(uncontrolled_memory_context's show hook allocates 1kB in CBBTopMemoryContext on every pg_settings scan)
+create or replace function pmk_showopt_cbb_used() returns bigint as $$
+    select coalesce(sum(usedsize), 0)::bigint from pg_catalog.pv_session_memory_detail()
+     where contextname = 'CBBTopMemoryContext'
+       and split_part(sessid, '.', 2) = pg_catalog.pg_current_sessid()::text;
+$$ language sql volatile;
+create or replace function pmk_showopt_leak_check(loops int) returns boolean as $$
+declare
+    before_used bigint;
+    after_used bigint;
+    dummy bigint;
+begin
+    before_used := pmk_showopt_cbb_used();
+    for i in 1..loops loop
+        select count(*) into dummy from pg_settings where name = 'uncontrolled_memory_context';
+    end loop;
+    after_used := pmk_showopt_cbb_used();
+    return (after_used - before_used) < 102400;
+end;
+$$ language plpgsql;
+select pmk_showopt_leak_check(1000);
+ pmk_showopt_leak_check 
+------------------------
+ t
+(1 row)
+
+drop function pmk_showopt_leak_check(int);
+drop function pmk_showopt_cbb_used();
