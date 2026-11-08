@@ -12,6 +12,7 @@ test: directory_test
 # test sql by pass
 test: bypass_simplequery_support
 test: bypass_preparedexecute_support
+test: bypass_int8cast_support
 test: bypass_paral_pre
 test: bypass_paral_1 bypass_paral_2 bypass_paral_3 bypass_paral_4 bypass_paral_5 bypass_paral_6
 test: bypass_paral_end
