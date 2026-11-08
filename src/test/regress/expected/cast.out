@@ -1085,7 +1085,7 @@ select cast('-0.9999999999999999999999999999999999999999999999999999999999999999
 SELECT cast('1234.56' as number default 999 on conversion error ,'99.99');
  numeric 
 ---------
-    1234
+     999
 (1 row)
 
 SELECT cast('1234.56' as number default 999 on conversion error ,'999999.99');
@@ -1097,7 +1097,7 @@ SELECT cast('1234.56' as number default 999 on conversion error ,'999999.99');
 SELECT cast('1234.56' as number default 999 on conversion error ,'999999');
  numeric 
 ---------
-   12345
+     999
 (1 row)
 
 --带有前导零的值
@@ -1135,7 +1135,7 @@ SELECT cast('1234.56' as number default 999 on conversion error ,'9999.99');
 SELECT cast('1234.56' as number default 999 on conversion error ,'99.99');
  numeric 
 ---------
-    1234
+     999
 (1 row)
 
 --分组，（千）分隔符
@@ -1211,7 +1211,7 @@ SELECT cast('1234.56' as number default 999 on conversion error ,'9999D99');
 SELECT cast('1234.56' as number default 99 on conversion error ,'99D99');
  numeric 
 ---------
-    1234
+      99
 (1 row)
 
 --分组分隔符
@@ -1230,7 +1230,7 @@ SELECT cast('12,345,678.56' as number default 999 on conversion error ,'99G999G9
 SELECT cast('1,234.56' as number default 999 on conversion error ,'999D99');
  numeric 
 ---------
-  1234.5
+     999
 (1 row)
 
 --移动指定位（小数）

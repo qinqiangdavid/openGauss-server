@@ -1362,4 +1362,61 @@ SELECT * FROM tonumber_exec ORDER BY c1;
 
 DROP TABLE tonumber;
 DROP TABLE tonumber_exec;
+-- A compatibility: the integer part of the input must fit the integer digits of the format
+select to_number('0123456789','000000000.000'); -- error: 10 integer digits for 9
+ERROR:  invalid data.
+CONTEXT:  referenced column: to_number
+select to_number('1234567890','999999999'); -- error: 10 integer digits for 9
+ERROR:  invalid data.
+CONTEXT:  referenced column: to_number
+select to_number('12345','999.99'); -- error: 5 integer digits for 3
+ERROR:  invalid data.
+CONTEXT:  referenced column: to_number
+select to_number('1,234,567','9,999'); -- error: 7 integer digits for 4
+ERROR:  invalid data.
+CONTEXT:  referenced column: to_number
+select to_number('123456789','999999999');
+ to_number 
+-----------
+ 123456789
+(1 row)
+
+select to_number('123456789','000000000.000');
+ to_number 
+-----------
+ 123456789
+(1 row)
+
+select to_number('-123.45','999.99');
+ to_number 
+-----------
+   -123.45
+(1 row)
+
+select to_number('123','99999');
+ to_number 
+-----------
+       123
+(1 row)
+
+select to_number('1,234.5','9,999.99');
+ to_number 
+-----------
+    1234.5
+(1 row)
+
+select to_number('1234567890' default 999 on conversion error ,'999999999');
+ to_number 
+-----------
+       999
+(1 row)
+
+set behavior_compat_options = 'correct_to_number';
+select to_number('1234567890','999999999');
+ to_number 
+-----------
+ 123456789
+(1 row)
+
+reset behavior_compat_options;
 drop schema if exists func_to_number cascade;
